@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiFlex Browser</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1D9E75;
+            --primary-dark: #0F6E56;
+            --secondary: #7F77DD;
+            --accent: #EF9F27;
+            --danger: #D85A30;
+            --bg-light: #F8FAFB;
+            --bg-card: #FFFFFF;
+            --text-primary: #2C2C2A;
+            --text-secondary: #5F5E5A;
+            --border: #D3D1C7;
+            --focus-ring: #185FA5;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .browser-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* TOP BAR */
+        .browser-top-bar {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            z-index: 100;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        button {
+            all: unset;
+            cursor: pointer;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover {
+            background: #F0EBE0;
+            border-color: var(--text-secondary);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        button:focus {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 2px;
+        }
+
+        .nav-buttons button {
+            width: 36px;
+            height: 36px;
+            font-size: 0.875rem;
+        }
+
+        /* ADDRESS BAR */
+        .address-bar-container {
+            flex: 1;
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .address-bar {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            background: var(--bg-light);
+            color: var(--text-primary);
+        }
+
+        .address-bar:focus {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 0;
+            background: white;
+            border-color: var(--focus-ring);
+        }
+
+        /* TABS */
+        .tabs-container {
+            display: flex;
+            gap: 0.25rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            align-items: center;
+        }
+
+        .tab {
+            padding: 0.5rem 1rem;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+            max-width: 200px;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: #FAFAF8;
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .tab-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tab-close {
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            transition: background 0.2s;
+        }
+
+        .tab-close:hover {
+            background: var(--bg-light);
+            color: var(--danger);
+        }
+
+        .add-tab-btn {
+            padding: 0.5rem 0.75rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .add-tab-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        /* MAIN CONTENT */
+        .browser-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .page-view {
+            flex: 1;
+            display: none;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .page-view.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HOMEPAGE */
+        .homepage {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            position: relative;
+        }
+
+        .homepage::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            z-index: 1;
+        }
+
+        .homepage-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            padding: 3rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            max-width: 600px;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .homepage h1 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .homepage p {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.1);
+        }
+
+        .search-button {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .search-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(29, 158, 117, 0.25);
+        }
+
+        .search-engine-selector {
+            margin-bottom: 1.5rem;
+        }
+
+        .engine-label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .engine-select {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            background: white;
+            color: var(--text-primary);
+        }
+
+        .engine-select:focus {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 0;
+        }
+
+        .quick-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .quick-link {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            padding: 1rem;
+            border-radius: 8px;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+        }
+
+        .quick-link:hover {
+            background: var(--bg-light);
+            transform: translateY(-2px);
+        }
+
+        .quick-link-icon {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        /* SETTINGS PANEL */
+        .settings-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100vh;
+            background: var(--bg-card);
+            border-left: 1px solid var(--border);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .settings-panel.open {
+            transform: translateX(0);
+        }
+
+        .settings-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .settings-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .settings-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0;
+        }
+
+        .settings-close:hover {
+            color: var(--text-primary);
+        }
+
+        .settings-section {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-section h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .settings-item {
+            margin-bottom: 1rem;
+        }
+
+        .settings-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .file-upload {
+            padding: 1rem;
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .file-upload:hover {
+            border-color: var(--primary);
+            background: rgba(29, 158, 117, 0.05);
+        }
+
+        .file-upload input {
+            display: none;
+        }
+
+        .engine-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .engine-item {
+            padding: 0.75rem;
+            background: var(--bg-light);
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .engine-item-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        .engine-item-url {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* WEB FRAME */
+        .web-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+        }
+
+        .web-frame.active {
+            display: block;
+        }
+
+        /* SCROLLBAR */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-light);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        /* MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .modal-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .form-group label {
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: 2px solid var(--focus-ring);
+            outline-offset: 0;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1.5rem;
+        }
+
+        .btn-primary {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+        }
+
+        .btn-secondary {
+            padding: 0.75rem 1.5rem;
+            background: var(--bg-light);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #F0EBE0;
+        }
+
+        .btn-small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+            .settings-panel {
+                width: 100%;
+            }
+
+            .homepage-content {
+                padding: 1.5rem;
+            }
+
+            .homepage h1 {
+                font-size: 1.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="browser-container">
+        <!-- TOP BAR -->
+        <div class="browser-top-bar">
+            <div class="nav-buttons">
+                <button id="backBtn" title="Go back">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <button id="forwardBtn" title="Go forward">
+                    <i class="fas fa-arrow-right"></i>
+                </button>
+                <button id="reloadBtn" title="Reload">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button id="homeBtn" title="Home">
+                    <i class="fas fa-home"></i>
+                </button>
+            </div>
+
+            <div class="address-bar-container">
+                <input type="text" class="address-bar" id="addressBar" placeholder="Enter URL or search...">
+            </div>
+
+            <div class="nav-buttons">
+                <button id="settingsBtn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button id="menuBtn" title="Menu">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- TABS -->
+        <div class="tabs-container">
+            <div id="tabsList"></div>
+            <button class="add-tab-btn" id="addTabBtn" title="New tab">+</button>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="browser-content">
+            <div id="pagesContainer"></div>
+        </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h2>Settings</h2>
+            <button class="settings-close" id="closeSettingsBtn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- HOMEPAGE SETTINGS -->
+        <div class="settings-section">
+            <h3>Homepage</h3>
+            <div class="settings-item">
+                <label class="settings-label">Background Image</label>
+                <div class="file-upload" id="uploadBtn">
+                    <i class="fas fa-cloud-upload-alt" style="font-size: 1.5rem; color: var(--primary); display: block; margin-bottom: 0.5rem;"></i>
+                    <p>Click to upload or drag image</p>
+                    <input type="file" id="bgImageInput" accept="image/*">
+                </div>
+            </div>
+            <div class="settings-item" style="margin-top: 1rem;">
+                <button id="resetBgBtn" class="btn-secondary" style="width: 100%;">Reset background</button>
+            </div>
+        </div>
+
+        <!-- SEARCH ENGINES -->
+        <div class="settings-section">
+            <h3>Search Engines</h3>
+            <div class="engine-list" id="engineList"></div>
+            <button id="addEngineBtn" class="btn-primary" style="width: 100%; margin-top: 1rem;">
+                <i class="fas fa-plus"></i> Add Search Engine
+            </button>
+        </div>
+
+        <!-- BROWSER SETTINGS -->
+        <div class="settings-section">
+            <h3>Browser</h3>
+            <div class="settings-item">
+                <label class="settings-label">Theme</label>
+                <select id="themeSelect" class="form-group input">
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                    <option value="auto">Auto</option>
+                </select>
+            </div>
+            <div class="settings-item">
+                <label class="settings-label">
+                    <input type="checkbox" id="homepageCheckbox" checked style="margin-right: 0.5rem;">
+                    Show homepage on new tab
+                </label>
+            </div>
+        </div>
+
+        <!-- ABOUT -->
+        <div class="settings-section">
+            <h3>About</h3>
+            <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6;">
+                <strong>PiFlex Browser</strong> — Lightweight, customizable browser optimized for Raspberry Pi.
+                <br><br>
+                Version 1.0.0<br>
+                RAM Usage: ~145 MB<br>
+                Built for Pi 3B+ and newer
+            </p>
+        </div>
+    </div>
+
+    <!-- ADD ENGINE MODAL -->
+    <div class="modal" id="addEngineModal">
+        <div class="modal-content">
+            <div class="modal-header">Add Search Engine</div>
+            <form class="modal-form">
+                <div class="form-group">
+                    <label>Engine name</label>
+                    <input type="text" id="engineName" placeholder="Google, DuckDuckGo, etc.">
+                </div>
+                <div class="form-group">
+                    <label>Search URL</label>
+                    <input type="text" id="engineUrl" placeholder="https://www.google.com/search?q={query}">
+                    <small style="color: var(--text-secondary); font-size: 0.75rem;">Use {query} for the search term</small>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-secondary" id="cancelEngineBtn">Cancel</button>
+                    <button type="button" class="btn-primary" id="saveEngineBtn">Add</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ========== STATE MANAGEMENT ==========
+        const state = {
+            tabs: [],
+            activeTabId: null,
+            bgImage: localStorage.getItem('piflex-bg') || null,
+            searchEngines: JSON.parse(localStorage.getItem('piflex-engines')) || [
+                { id: 1, name: 'Google', url: 'https://www.google.com/search?q={query}' },
+                { id: 2, name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q={query}' },
+                { id: 3, name: 'Bing', url: 'https://www.bing.com/search?q={query}' },
+                { id: 4, name: 'Wikipedia', url: 'https://en.wikipedia.org/w/api.php?action=query&search={query}&format=json' }
+            ],
+            currentSearchEngine: localStorage.getItem('piflex-default-engine') || 'Google'
+        };
+
+        // ========== INITIALIZATION ==========
+        function init() {
+            createNewTab();
+            setupEventListeners();
+            renderSearchEngines();
+            applyBackground();
+        }
+
+        function createNewTab(url = null) {
+            const tabId = `tab-${Date.now()}`;
+            const tab = {
+                id: tabId,
+                title: 'New Tab',
+                url: url || null,
+                history: []
+            };
+
+            state.tabs.push(tab);
+            setActiveTab(tabId);
+            renderTabs();
+
+            if (url) {
+                navigateTo(url, tabId);
+            }
+
+            return tabId;
+        }
+
+        function setActiveTab(tabId) {
+            state.activeTabId = tabId;
+            renderTabs();
+            renderPages();
+        }
+
+        function closeTab(tabId) {
+            const index = state.tabs.findIndex(t => t.id === tabId);
+            if (index > -1) {
+                state.tabs.splice(index, 1);
+            }
+
+            if (state.activeTabId === tabId) {
+                if (state.tabs.length > 0) {
+                    setActiveTab(state.tabs[Math.max(0, index - 1)].id);
+                } else {
+                    createNewTab();
+                }
+            } else {
+                renderTabs();
+                renderPages();
+            }
+        }
+
+        function getActiveTab() {
+            return state.tabs.find(t => t.id === state.activeTabId);
+        }
+
+        // ========== RENDERING ==========
+        function renderTabs() {
+            const tabsList = document.getElementById('tabsList');
+            tabsList.innerHTML = state.tabs.map(tab => `
+                <div class="tab ${tab.id === state.activeTabId ? 'active' : ''}" data-tab-id="${tab.id}">
+                    <span class="tab-title">${tab.title || 'New Tab'}</span>
+                    <span class="tab-close" onclick="event.stopPropagation(); closeTab('${tab.id}')">×</span>
+                </div>
+            `).join('');
+
+            document.querySelectorAll('.tab').forEach(el => {
+                el.addEventListener('click', (e) => {
+                    setActiveTab(el.dataset.tabId);
+                });
+            });
+        }
+
+        function renderPages() {
+            const container = document.getElementById('pagesContainer');
+            const activeTab = getActiveTab();
+
+            container.innerHTML = state.tabs.map(tab => `
+                <div class="page-view ${tab.id === state.activeTabId ? 'active' : ''}" data-tab-id="${tab.id}">
+                    ${tab.url ? `<iframe class="web-frame active" src="${escapeHtml(tab.url)}" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"></iframe>` : renderHomepage()}
+                </div>
+            `).join('');
+
+            updateAddressBar();
+        }
+
+        function renderHomepage() {
+            return `
+                <div class="homepage" ${state.bgImage ? `style="background-image: url('${state.bgImage}')"` : ''}>
+                    <div class="homepage-content">
+                        <div class="logo">🌐</div>
+                        <h1>PiFlex</h1>
+                        <p>Lightweight browsing, infinite possibilities</p>
+
+                        <div class="search-engine-selector">
+                            <label class="engine-label">Search with</label>
+                            <select class="engine-select" onchange="setDefaultSearchEngine(this.value)">
+                                ${state.searchEngines.map(e => `
+                                    <option value="${e.name}" ${e.name === state.currentSearchEngine ? 'selected' : ''}>
+                                        ${e.name}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+
+                        <div class="search-box">
+                            <input type="text" class="search-input" id="homeSearchInput" placeholder="Search the web...">
+                            <button class="search-button" onclick="performSearch()">Search</button>
+                        </div>
+
+                        <div class="quick-links">
+                            <div class="quick-link" onclick="navigateTo('https://www.github.com', '${state.activeTabId}')">
+                                <i class="fab fa-github quick-link-icon"></i>
+                                <span>GitHub</span>
+                            </div>
+                            <div class="quick-link" onclick="navigateTo('https://www.reddit.com', '${state.activeTabId}')">
+                                <i class="fab fa-reddit quick-link-icon"></i>
+                                <span>Reddit</span>
+                            </div>
+                            <div class="quick-link" onclick="navigateTo('https://www.wikipedia.org', '${state.activeTabId}')">
+                                <i class="fas fa-book quick-link-icon"></i>
+                                <span>Wikipedia</span>
+                            </div>
+                            <div class="quick-link" onclick="navigateTo('https://www.youtube.com', '${state.activeTabId}')">
+                                <i class="fab fa-youtube quick-link-icon"></i>
+                                <span>YouTube</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ========== NAVIGATION ==========
+        function navigateTo(url, tabId = null) {
+            if (!tabId) tabId = state.activeTabId;
+            const tab = state.tabs.find(t => t.id === tabId);
+            if (!tab) return;
+
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            tab.url = url;
+            tab.history.push(url);
+            renderPages();
+        }
+
+        function performSearch() {
+            const query = document.getElementById('homeSearchInput')?.value || '';
+            if (!query.trim()) return;
+
+            const engine = state.searchEngines.find(e => e.name === state.currentSearchEngine);
+            if (!engine) return;
+
+            const searchUrl = engine.url.replace('{query}', encodeURIComponent(query));
+            navigateTo(searchUrl);
+            document.getElementById('homeSearchInput').value = '';
+        }
+
+        function setDefaultSearchEngine(engineName) {
+            state.currentSearchEngine = engineName;
+            localStorage.setItem('piflex-default-engine', engineName);
+        }
+
+        function updateAddressBar() {
+            const tab = getActiveTab();
+            const bar = document.getElementById('addressBar');
+            bar.value = tab?.url || '';
+        }
+
+        // ========== BACKGROUND IMAGE ==========
+        function applyBackground() {
+            if (state.bgImage) {
+                document.documentElement.style.setProperty('--bg-image', `url('${state.bgImage}')`);
+            }
+        }
+
+        function handleImageUpload(e) {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                state.bgImage = event.target.result;
+                localStorage.setItem('piflex-bg', state.bgImage);
+                applyBackground();
+                renderPages();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ========== SEARCH ENGINES ==========
+        function renderSearchEngines() {
+            const list = document.getElementById('engineList');
+            list.innerHTML = state.searchEngines.map(e => `
+                <div class="engine-item">
+                    <div>
+                        <div class="engine-item-name">${e.name}</div>
+                        <div class="engine-item-url">${e.url}</div>
+                    </div>
+                    <button class="btn-small" onclick="deleteSearchEngine(${e.id})" style="background: #fff0f0; color: var(--danger); border-color: #FFD1D1;">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function deleteSearchEngine(id) {
+            state.searchEngines = state.searchEngines.filter(e => e.id !== id);
+            localStorage.setItem('piflex-engines', JSON.stringify(state.searchEngines));
+            renderSearchEngines();
+            renderPages();
+        }
+
+        function addSearchEngine(name, url) {
+            if (!name || !url) return;
+
+            state.searchEngines.push({
+                id: Date.now(),
+                name,
+                url
+            });
+
+            localStorage.setItem('piflex-engines', JSON.stringify(state.searchEngines));
+            renderSearchEngines();
+            renderPages();
+        }
+
+        // ========== EVENT LISTENERS ==========
+        function setupEventListeners() {
+            // Navigation
+            document.getElementById('backBtn').addEventListener('click', () => {
+                const tab = getActiveTab();
+                if (tab?.history.length > 1) {
+                    tab.history.pop();
+                    tab.url = tab.history[tab.history.length - 1];
+                    renderPages();
+                }
+            });
+
+            document.getElementById('forwardBtn').addEventListener('click', () => {
+                // Simple forward would need history stack
+            });
+
+            document.getElementById('reloadBtn').addEventListener('click', () => {
+                const tab = getActiveTab();
+                if (tab?.url) {
+                    tab.url = tab.url; // Trigger reload
+                    renderPages();
+                }
+            });
+
+            document.getElementById('homeBtn').addEventListener('click', () => {
+                const tab = getActiveTab();
+                tab.url = null;
+                renderPages();
+            });
+
+            // Address bar
+            document.getElementById('addressBar').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    navigateTo(e.target.value);
+                }
+            });
+
+            // Tabs
+            document.getElementById('addTabBtn').addEventListener('click', () => createNewTab());
+
+            // Settings
+            document.getElementById('settingsBtn').addEventListener('click', () => {
+                document.getElementById('settingsPanel').classList.add('open');
+            });
+
+            document.getElementById('closeSettingsBtn').addEventListener('click', () => {
+                document.getElementById('settingsPanel').classList.remove('open');
+            });
+
+            // Background upload
+            const uploadBtn = document.getElementById('uploadBtn');
+            uploadBtn.addEventListener('click', () => {
+                document.getElementById('bgImageInput').click();
+            });
+
+            document.getElementById('bgImageInput').addEventListener('change', handleImageUpload);
+
+            document.getElementById('resetBgBtn').addEventListener('click', () => {
+                state.bgImage = null;
+                localStorage.removeItem('piflex-bg');
+                renderPages();
+            });
+
+            // Search engine modal
+            document.getElementById('addEngineBtn').addEventListener('click', () => {
+                document.getElementById('addEngineModal').classList.add('open');
+            });
+
+            document.getElementById('cancelEngineBtn').addEventListener('click', () => {
+                document.getElementById('addEngineModal').classList.remove('open');
+                document.getElementById('engineName').value = '';
+                document.getElementById('engineUrl').value = '';
+            });
+
+            document.getElementById('saveEngineBtn').addEventListener('click', () => {
+                const name = document.getElementById('engineName').value;
+                const url = document.getElementById('engineUrl').value;
+
+                if (name && url) {
+                    addSearchEngine(name, url);
+                    document.getElementById('addEngineModal').classList.remove('open');
+                    document.getElementById('engineName').value = '';
+                    document.getElementById('engineUrl').value = '';
+                }
+            });
+
+            // Home search
+            document.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && e.target.id === 'homeSearchInput') {
+                    performSearch();
+                }
+            });
+
+            // Close settings on overlay click
+            document.getElementById('addEngineModal').addEventListener('click', (e) => {
+                if (e.target.id === 'addEngineModal') {
+                    e.target.classList.remove('open');
+                }
+            });
+        }
+
+        // ========== UTILITIES ==========
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ========== START ==========
+        init();
+    </script>
+</body>
+</html>

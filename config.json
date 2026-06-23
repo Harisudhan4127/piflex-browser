@@ -1,0 +1,297 @@
+{
+  "name": "PiFlex Browser",
+  "version": "1.0.0",
+  "author": "PiFlex Team",
+  "description": "Lightweight, customizable browser optimized for Raspberry Pi",
+  
+  "performance": {
+    "memoryBudget": {
+      "totalMB": 150,
+      "webEngineMB": 70,
+      "uiShellMB": 30,
+      "extensionsMB": 20,
+      "cacheMB": 15,
+      "miscMB": 10
+    },
+    "optimization": {
+      "lazyLoadTabs": true,
+      "lazyLoadImages": true,
+      "maxConcurrentDownloads": 4,
+      "jsHeapLimit": 50000000,
+      "imageCompressionQuality": 0.85,
+      "enableDiskCache": true,
+      "cacheSizeMB": 200
+    },
+    "thermalManagement": {
+      "enabled": true,
+      "cpuThrottleTemp": 80,
+      "gpuThrottleTemp": 85,
+      "coolingCheckInterval": 5000,
+      "displayWarningAtTemp": 75
+    }
+  },
+
+  "ui": {
+    "theme": {
+      "default": "auto",
+      "supportsDarkMode": true,
+      "colors": {
+        "light": {
+          "primary": "#1D9E75",
+          "secondary": "#7F77DD",
+          "accent": "#EF9F27",
+          "danger": "#D85A30",
+          "bg": "#F8FAFB",
+          "bgCard": "#FFFFFF",
+          "textPrimary": "#2C2C2A",
+          "textSecondary": "#5F5E5A"
+        },
+        "dark": {
+          "primary": "#26D07C",
+          "secondary": "#9C95F7",
+          "accent": "#FFB426",
+          "danger": "#FF6B42",
+          "bg": "#1A1A1A",
+          "bgCard": "#2D2D2D",
+          "textPrimary": "#FFFFFF",
+          "textSecondary": "#B0B0B0"
+        }
+      }
+    },
+    "homepage": {
+      "showQuickLinks": true,
+      "showSearchBar": true,
+      "enableCustomBackground": true,
+      "backgroundBlurLevel": 8,
+      "defaultSearchEngine": "Google"
+    },
+    "tabs": {
+      "maxOpenTabs": 20,
+      "showTabPreview": true,
+      "previewDelay": 500,
+      "enableTabGroups": false,
+      "enableVerticalTabs": false
+    },
+    "navigation": {
+      "showFavicon": true,
+      "showSecurityIndicator": true,
+      "showReadingTime": false,
+      "enableSmartAddressBar": true
+    },
+    "accessibility": {
+      "highContrast": false,
+      "reduceMotion": false,
+      "enableScreenReader": true,
+      "focusRingWidth": 2
+    }
+  },
+
+  "browser": {
+    "defaults": {
+      "homePage": "piflex://home",
+      "newTabPage": "piflex://home",
+      "searchEngine": "Google",
+      "language": "en-US",
+      "timezone": "auto"
+    },
+    "privacy": {
+      "enableDNSoverHTTPS": true,
+      "blockTrackers": true,
+      "blockAds": false,
+      "enforceHTTPSOnly": true,
+      "enableCertificatePinning": true,
+      "clearBrowsingDataOnExit": false,
+      "privateBrowsingDefault": false
+    },
+    "security": {
+      "enableSandboxing": true,
+      "enableCSP": true,
+      "enableXSSProtection": true,
+      "enableClickjackingProtection": true,
+      "enableMixedContentBlocking": true
+    },
+    "content": {
+      "enableJavaScript": true,
+      "enableJavaScriptJIT": true,
+      "enableWebGL": true,
+      "enableWebAssembly": true,
+      "enablePlugins": false,
+      "enableMedia": true,
+      "autoPlayVideos": false,
+      "autoPlayAudio": false
+    },
+    "history": {
+      "enabled": true,
+      "maxAge": 2592000000,
+      "maxItems": 50000,
+      "saveTabs": true
+    }
+  },
+
+  "searchEngines": [
+    {
+      "id": 1,
+      "name": "Google",
+      "url": "https://www.google.com/search?q={query}",
+      "icon": "https://www.google.com/favicon.ico",
+      "enabled": true,
+      "default": true
+    },
+    {
+      "id": 2,
+      "name": "DuckDuckGo",
+      "url": "https://duckduckgo.com/?q={query}",
+      "icon": "https://duckduckgo.com/favicon.ico",
+      "enabled": true,
+      "default": false
+    },
+    {
+      "id": 3,
+      "name": "Bing",
+      "url": "https://www.bing.com/search?q={query}",
+      "icon": "https://www.bing.com/favicon.ico",
+      "enabled": true,
+      "default": false
+    },
+    {
+      "id": 4,
+      "name": "Wikipedia",
+      "url": "https://en.wikipedia.org/w/api.php?action=query&search={query}&format=json",
+      "icon": "https://en.wikipedia.org/favicon.ico",
+      "enabled": true,
+      "default": false
+    },
+    {
+      "id": 5,
+      "name": "GitHub",
+      "url": "https://github.com/search?q={query}",
+      "icon": "https://github.com/favicon.ico",
+      "enabled": false,
+      "default": false
+    }
+  ],
+
+  "extensions": {
+    "enabled": true,
+    "sandboxed": true,
+    "maxMemoryPerExtension": 50000000,
+    "allowNativeMessaging": false,
+    "requireManifestV3": true,
+    "defaultPermissions": [
+      "activeTab",
+      "scripting"
+    ]
+  },
+
+  "hardware": {
+    "piOptimization": {
+      "enabled": true,
+      "detectGPUMemory": true,
+      "enableVideoCore": true,
+      "enableVFPv4": true,
+      "enableNEON": true,
+      "monitorTemperature": true
+    },
+    "touchscreen": {
+      "enabled": "auto",
+      "useGestureSwipeForNavigation": true,
+      "minSwipeDistance": 50,
+      "longPressDelay": 500
+    },
+    "gpio": {
+      "enabled": false,
+      "exposeGPIO": false,
+      "allowScriptControl": false
+    }
+  },
+
+  "network": {
+    "maxConnections": 6,
+    "maxConnectionsPerHost": 2,
+    "connectTimeout": 30000,
+    "readTimeout": 30000,
+    "enableHTTP2": true,
+    "enableHTTP3": false,
+    "enableProxy": false,
+    "proxyServer": null,
+    "proxyBypass": ["localhost", "127.0.0.1", "::1"]
+  },
+
+  "storage": {
+    "database": {
+      "type": "sqlite3",
+      "location": "~/.piflex/data.db",
+      "enableEncryption": true
+    },
+    "cache": {
+      "type": "disk",
+      "location": "~/.piflex/cache",
+      "maxSize": 209715200,
+      "compressionAlgorithm": "gzip"
+    },
+    "localStorage": {
+      "maxSize": 52428800,
+      "persistence": true
+    }
+  },
+
+  "logging": {
+    "enabled": false,
+    "level": "warn",
+    "outputFormat": "json",
+    "logFile": "~/.piflex/logs/browser.log",
+    "maxLogSize": 10485760,
+    "maxLogs": 5,
+    "categories": {
+      "network": false,
+      "rendering": false,
+      "javascript": false,
+      "extension": false,
+      "memory": false
+    }
+  },
+
+  "featureFlags": {
+    "verticalTabs": false,
+    "tabGroups": false,
+    "sidebarPanels": false,
+    "commandPalette": false,
+    "readerMode": false,
+    "adBlocker": false,
+    "passwordManager": false,
+    "synchronization": false,
+    "aiAssistant": false,
+    "voiceSearch": false,
+    "gestureNavigation": true,
+    "motionSensing": false
+  },
+
+  "raspberry_pi_specific": {
+    "raspiModel": "auto",
+    "cpuGovernor": "ondemand",
+    "gpuMemorySplit": 128,
+    "cpuThrottle": true,
+    "cpuFreqScaling": "interactive",
+    "disableUnusedServices": [
+      "bluetooth",
+      "avahi-daemon",
+      "cups"
+    ],
+    "swapEnabled": true,
+    "swapSizeMB": 1024,
+    "oomKiller": {
+      "enabled": true,
+      "minFreePercent": 10
+    }
+  },
+
+  "development": {
+    "enableDevTools": false,
+    "enableVerboseLogging": false,
+    "enableCrashReporting": true,
+    "enableMetrics": false,
+    "hotReload": false,
+    "mockNetwork": false,
+    "slowMotionFactor": 1
+  }
+}

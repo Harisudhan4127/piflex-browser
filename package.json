@@ -1,0 +1,35 @@
+{
+  "name": "piflex-browser",
+  "version": "1.0.0",
+  "description": "Lightweight browser optimized for Raspberry Pi",
+  "main": "main.js",
+  "author": "PiFlex Team",
+  "license": "MIT",
+
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron ."
+  },
+
+  "dependencies": {
+    "electron-store": "^8.2.0"
+  },
+
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+
+  "build": {
+    "appId": "com.piflex.browser",
+    "productName": "PiFlex Browser",
+
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network"
+    }
+  }
+}
