@@ -1,158 +1,114 @@
-// =========================
-// PiFlex Application Core
-// =========================
+// ==================================
+// PiFlex Browser Application Controller
+// ==================================
 
-window.PIFLEX = {
-  version: "1.0.0",
+document.addEventListener('DOMContentLoaded', () => {
+    const urlBar = document.getElementById('urlBar');
+    const backBtn = document.getElementById('backBtn');
+    const forwardBtn = document.getElementById('forwardBtn');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const homeBtn = document.getElementById('homeBtn');
+    const newTabBtn = document.getElementById('newTabBtn');
 
-  initialized: false,
-};
-
-// =========================
-// Search Engine URLs
-// =========================
-
-const SEARCH_ENGINES = {
-  duckduckgo: "https://duckduckgo.com/?q=",
-
-  bing: "https://www.bing.com/search?q=",
-
-  google: "https://www.google.com/search?q=",
-};
-
-// =========================
-// Browser Startup
-// =========================
-
-function initializeBrowser() {
-  if (window.PIFLEX.initialized) return;
-
-  window.PIFLEX.initialized = true;
-
-  registerShortcuts();
-
-  showWelcomeMessage();
-}
-// =========================
-// Homepage Loader
-// =========================
-
-function loadHomepage() {
-  const homepage = getHomepage();
-
-  const webview = document.getElementById("browserView");
-
-  if (!webview) return;
-
-  webview.loadURL(homepage);
-}
-
-// =========================
-// Search Helper
-// =========================
-
-function performSearch(query) {
-  const engine = getSearchEngine();
-
-  const searchURL = SEARCH_ENGINES[engine] || SEARCH_ENGINES.duckduckgo;
-
-  navigate(searchURL + encodeURIComponent(query));
-}
-
-// =========================
-// Keyboard Shortcuts
-// =========================
-
-function registerShortcuts() {
-  document.addEventListener("keydown", (event) => {
-    const ctrl = event.ctrlKey;
-
-    // Ctrl + L
-    if (ctrl && event.key === "l") {
-      event.preventDefault();
-
-      document.getElementById("urlBar").focus();
+    // Register Button Events
+    if (newTabBtn) {
+        newTabBtn.addEventListener('click', () => {
+            window.tabManager.createTab();
+        });
     }
 
-    // Ctrl + T
-    if (ctrl && event.key === "t") {
-      event.preventDefault();
-
-      createTab();
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            window.tabManager.goBack();
+        });
     }
 
-    // Ctrl + W
-    if (ctrl && event.key === "w") {
-      event.preventDefault();
-
-      if (activeTabId) {
-        closeTab(activeTabId);
-      }
+    if (forwardBtn) {
+        forwardBtn.addEventListener('click', () => {
+            window.tabManager.goForward();
+        });
     }
 
-    // Ctrl + R
-    if (ctrl && event.key === "r") {
-      event.preventDefault();
-
-      document.getElementById("browserView").reload();
+    if (reloadBtn) {
+        reloadBtn.addEventListener('click', () => {
+            const tab = window.tabManager.getActiveTab();
+            if (tab) {
+                if (tab.loading && tab.webview) {
+                    tab.webview.stop();
+                } else {
+                    window.tabManager.reloadTab();
+                }
+            }
+        });
     }
 
-    // F5
-    if (event.key === "F5") {
-      event.preventDefault();
-
-      document.getElementById("browserView").reload();
+    if (homeBtn) {
+        homeBtn.addEventListener('click', () => {
+            window.tabManager.goHome();
+        });
     }
 
-    // ESC
-    if (event.key === "Escape") {
-      closeSettings();
+    // Address Bar Navigation
+    if (urlBar) {
+        urlBar.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && urlBar.value.trim()) {
+                window.tabManager.navigateActiveTab(urlBar.value.trim());
+                urlBar.blur();
+            }
+        });
+
+        // Select all text on click for convenient typing
+        urlBar.addEventListener('click', () => {
+            urlBar.select();
+        });
     }
-  });
-}
 
-// =========================
-// Welcome Message
-// =========================
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+        const ctrl = e.ctrlKey || e.metaKey;
 
-function showWelcomeMessage() {
-  console.log(
-    `
-==================================
- PiFlex Browser
- Version 1.0.0
- Raspberry Pi Edition
-==================================
-`,
-  );
-}
+        // Ctrl + T: New Tab
+        if (ctrl && e.key.toLowerCase() === 't') {
+            e.preventDefault();
+            window.tabManager.createTab();
+        }
 
-// =========================
-// Status Monitor
-// =========================
+        // Ctrl + W: Close Tab
+        if (ctrl && e.key.toLowerCase() === 'w') {
+            e.preventDefault();
+            const activeTab = window.tabManager.getActiveTab();
+            if (activeTab) {
+                window.tabManager.closeTab(activeTab.id);
+            }
+        }
 
-function startSystemMonitor() {
-  setInterval(() => {
-    const webview = document.getElementById("browserView");
+        // Ctrl + R / F5: Reload Page
+        if ((ctrl && e.key.toLowerCase() === 'r') || e.key === 'F5') {
+            e.preventDefault();
+            window.tabManager.reloadTab();
+        }
 
-    if (!webview) return;
+        // Ctrl + L: Focus Address Bar
+        if (ctrl && e.key.toLowerCase() === 'l') {
+            e.preventDefault();
+            if (urlBar) {
+                urlBar.focus();
+                urlBar.select();
+            }
+        }
 
-    console.log("Current URL:", webview.getURL());
-  }, 30000);
-}
+        // Escape: Close Settings Panel
+        if (e.key === 'Escape') {
+            const settingsPanel = document.getElementById('settingsPanel');
+            if (settingsPanel && settingsPanel.classList.contains('open')) {
+                settingsPanel.classList.remove('open');
+            }
+        }
+    });
 
-// =========================
-// Browser Events
-// =========================
-
-window.addEventListener("DOMContentLoaded", () => {
-  initializeBrowser();
+    // Create Initial Tab
+    window.tabManager.createTab();
+    
+    // Apply background theme if stored
+    window.settingsMgr.applyBackground();
 });
-
-// =========================
-// Global Helpers
-// =========================
-
-window.performSearch = performSearch;
-
-window.loadHomepage = loadHomepage;

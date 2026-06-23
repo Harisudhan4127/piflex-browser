@@ -1,272 +1,172 @@
-// =========================
+// ==================================
 // PiFlex Settings Manager
-// =========================
-
-const settingsPanel =
-    document.getElementById(
-        "settingsPanel"
-    );
-
-const settingsBtn =
-    document.getElementById(
-        "settingsBtn"
-    );
-
-const closeSettingsBtn =
-    document.getElementById(
-        "closeSettings"
-    );
-
-const homepageInput =
-    document.getElementById(
-        "homepageInput"
-    );
-
-const searchEngineSelect =
-    document.getElementById(
-        "searchEngine"
-    );
-
-// =========================
-// Default Settings
-// =========================
+// ==================================
 
 const DEFAULT_SETTINGS = {
-
-    homepage:
-        "https://duckduckgo.com",
-
-    searchEngine:
-        "duckduckgo",
-
-    theme:
-        "light"
+    theme: 'light',
+    searchEngine: 'duckduckgo',
+    backgroundImage: null
 };
 
-// =========================
-// Load Settings
-// =========================
+// Search Engines
+const SEARCH_ENGINES = {
+    duckduckgo: { name: 'DuckDuckGo', url: 'https://duckduckgo.com/?q=' },
+    google: { name: 'Google', url: 'https://www.google.com/search?q=' },
+    bing: { name: 'Bing', url: 'https://www.bing.com/search?q=' }
+};
 
-function loadSettings() {
-
-    const saved =
-        localStorage.getItem(
-            "piflex-settings"
-        );
-
-    if (!saved) {
-
-        saveSettings(
-            DEFAULT_SETTINGS
-        );
-
-        return DEFAULT_SETTINGS;
+class SettingsManager {
+    constructor() {
+        this.settings = this.loadSettings();
     }
 
-    try {
-
-        return JSON.parse(saved);
-
-    } catch {
-
-        return DEFAULT_SETTINGS;
+    loadSettings() {
+        try {
+            const data = localStorage.getItem('piflex_settings');
+            return data ? JSON.parse(data) : { ...DEFAULT_SETTINGS };
+        } catch (e) {
+            console.error('Failed to load settings:', e);
+            return { ...DEFAULT_SETTINGS };
+        }
     }
-}
 
-// =========================
-// Save Settings
-// =========================
+    saveSettings() {
+        try {
+            localStorage.setItem('piflex_settings', JSON.stringify(this.settings));
+        } catch (e) {
+            console.error('Failed to save settings:', e);
+        }
+    }
 
-function saveSettings(settings) {
+    getTheme() {
+        return this.settings.theme;
+    }
 
-    localStorage.setItem(
-        "piflex-settings",
-        JSON.stringify(settings)
-    );
-}
+    setTheme(theme) {
+        this.settings.theme = theme;
+        this.saveSettings();
+        this.applyTheme();
+    }
 
-// =========================
-// Get Settings
-// =========================
+    applyTheme() {
+        if (this.settings.theme === 'dark') {
+            document.body.classList.add('dark-theme');
+        } else {
+            document.body.classList.remove('dark-theme');
+        }
+    }
 
-function getSettings() {
+    getSearchEngine() {
+        return this.settings.searchEngine;
+    }
 
-    return loadSettings();
-}
+    setSearchEngine(engineKey) {
+        if (SEARCH_ENGINES[engineKey]) {
+            this.settings.searchEngine = engineKey;
+            this.saveSettings();
+        }
+    }
 
-// =========================
-// Homepage
-// =========================
+    getSearchUrl(query) {
+        const engine = SEARCH_ENGINES[this.settings.searchEngine] || SEARCH_ENGINES.duckduckgo;
+        return engine.url + encodeURIComponent(query);
+    }
 
-function getHomepage() {
+    getBackgroundImage() {
+        return this.settings.backgroundImage;
+    }
 
-    const settings =
-        getSettings();
+    setBackgroundImage(base64Data) {
+        this.settings.backgroundImage = base64Data;
+        this.saveSettings();
+        this.applyBackground();
+    }
 
-    return settings.homepage;
-}
+    applyBackground() {
+        const bgImage = this.settings.backgroundImage;
+        document.querySelectorAll('.homepage').forEach(el => {
+            if (bgImage) {
+                el.style.backgroundImage = `url(${bgImage})`;
+            } else {
+                el.style.backgroundImage = 'none';
+            }
+        });
+    }
 
-function setHomepage(url) {
-
-    const settings =
-        getSettings();
-
-    settings.homepage = url;
-
-    saveSettings(settings);
-}
-
-// =========================
-// Search Engine
-// =========================
-
-function getSearchEngine() {
-
-    const settings =
-        getSettings();
-
-    return settings.searchEngine;
-}
-
-function setSearchEngine(engine) {
-
-    const settings =
-        getSettings();
-
-    settings.searchEngine =
-        engine;
-
-    saveSettings(settings);
-}
-
-// =========================
-// Theme
-// =========================
-
-function getTheme() {
-
-    const settings =
-        getSettings();
-
-    return settings.theme;
-}
-
-function setTheme(theme) {
-
-    const settings =
-        getSettings();
-
-    settings.theme = theme;
-
-    saveSettings(settings);
-
-    applyTheme(theme);
-}
-
-function applyTheme(theme) {
-
-    document.body.classList.remove(
-        "dark-theme"
-    );
-
-    if (
-        theme === "dark"
-    ) {
-
-        document.body.classList.add(
-            "dark-theme"
-        );
+    resetBackground() {
+        this.settings.backgroundImage = null;
+        this.saveSettings();
+        this.applyBackground();
     }
 }
 
-// =========================
-// UI Sync
-// =========================
+// Instantiate globally
+window.settingsMgr = new SettingsManager();
 
-function updateSettingsUI() {
+document.addEventListener('DOMContentLoaded', () => {
+    // Populate settings UI
+    const themeSelect = document.getElementById('themeSelect');
+    const searchEngineSelect = document.getElementById('searchEngineSelect');
+    const bgImageInput = document.getElementById('bgImageInput');
+    const bgUploadBtn = document.getElementById('bgUploadBtn');
+    const resetBgBtn = document.getElementById('resetBgBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const closeSettings = document.getElementById('closeSettings');
+    const settingsPanel = document.getElementById('settingsPanel');
 
-    const settings =
-        getSettings();
-
-    homepageInput.value =
-        settings.homepage;
-
-    searchEngineSelect.value =
-        settings.searchEngine;
-}
-
-// =========================
-// Open / Close Panel
-// =========================
-
-function openSettings() {
-
-    settingsPanel.classList.add(
-        "open"
-    );
-}
-
-function closeSettings() {
-
-    settingsPanel.classList.remove(
-        "open"
-    );
-}
-
-// =========================
-// Events
-// =========================
-
-settingsBtn.addEventListener(
-    "click",
-    () => {
-
-        updateSettingsUI();
-
-        openSettings();
+    // Load initial configurations
+    window.settingsMgr.applyTheme();
+    
+    if (themeSelect) {
+        themeSelect.value = window.settingsMgr.getTheme();
+        themeSelect.addEventListener('change', (e) => {
+            window.settingsMgr.setTheme(e.target.value);
+        });
     }
-);
 
-closeSettingsBtn.addEventListener(
-    "click",
-    () => {
-
-        closeSettings();
+    if (searchEngineSelect) {
+        // Populate dropdown
+        searchEngineSelect.innerHTML = Object.keys(SEARCH_ENGINES).map(key => 
+            `<option value="${key}">${SEARCH_ENGINES[key].name}</option>`
+        ).join('');
+        
+        searchEngineSelect.value = window.settingsMgr.getSearchEngine();
+        searchEngineSelect.addEventListener('change', (e) => {
+            window.settingsMgr.setSearchEngine(e.target.value);
+        });
     }
-);
 
-homepageInput.addEventListener(
-    "change",
-    () => {
-
-        setHomepage(
-            homepageInput.value
-        );
+    // Toggle Settings Panel
+    if (settingsBtn && settingsPanel) {
+        settingsBtn.addEventListener('click', () => {
+            settingsPanel.classList.add('open');
+        });
     }
-);
 
-searchEngineSelect.addEventListener(
-    "change",
-    () => {
-
-        setSearchEngine(
-            searchEngineSelect.value
-        );
+    if (closeSettings && settingsPanel) {
+        closeSettings.addEventListener('click', () => {
+            settingsPanel.classList.remove('open');
+        });
     }
-);
 
-// =========================
-// Startup
-// =========================
-
-window.addEventListener(
-    "DOMContentLoaded",
-    () => {
-
-        updateSettingsUI();
-
-        applyTheme(
-            getTheme()
-        );
+    // Background uploading
+    if (bgUploadBtn && bgImageInput) {
+        bgUploadBtn.addEventListener('click', () => bgImageInput.click());
+        bgImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    window.settingsMgr.setBackgroundImage(event.target.result);
+                };
+                reader.readAsDataURL(file);
+            }
+        });
     }
-);
+
+    if (resetBgBtn) {
+        resetBgBtn.addEventListener('click', () => {
+            window.settingsMgr.resetBackground();
+        });
+    }
+});

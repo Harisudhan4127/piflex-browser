@@ -3,6 +3,15 @@ const path = require('path');
 
 // Raspberry Pi optimization
 app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
+app.commandLine.appendSwitch('disable-dev-shm-usage');
+app.commandLine.appendSwitch('disk-cache-size', '52428800'); // 50MB max cache
+app.commandLine.appendSwitch('disable-background-networking');
+app.commandLine.appendSwitch('disable-default-apps');
+app.commandLine.appendSwitch('disable-extensions');
+app.commandLine.appendSwitch('disable-sync');
+app.commandLine.appendSwitch('disable-translate');
+app.commandLine.appendSwitch('disable-features', 'Translate,LanguageDetection,BackgroundFetch');
 
 let mainWindow;
 

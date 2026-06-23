@@ -1,146 +1,42 @@
-// =========================
-// PiFlex Browser Engine
-// =========================
+// ==================================
+// PiFlex Browser Helper Actions
+// ==================================
 
-const webview = document.getElementById("browserView");
+const Browser = {
+    isValidUrl(input) {
+        input = input.trim();
+        // Match simple protocol-less domains e.g. google.com, localhost:3000, 192.168.1.1
+        const domainRegex = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?(\/.*)?$/;
+        const ipRegex = /^(?:\d{1,3}\.){3}\d{1,3}(:\d+)?(\/.*)?$/;
+        const localhostRegex = /^localhost(:\d+)?(\/.*)?$/;
 
-const urlBar = document.getElementById("urlBar");
+        if (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('file://')) {
+            try {
+                new URL(input);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        return domainRegex.test(input) || ipRegex.test(input) || localhostRegex.test(input);
+    },
 
-const backBtn = document.getElementById("backBtn");
-const forwardBtn = document.getElementById("forwardBtn");
-const reloadBtn = document.getElementById("reloadBtn");
-const homeBtn = document.getElementById("homeBtn");
-const goBtn = document.getElementById("goBtn");
+    formatUrl(input) {
+        input = input.trim();
+        if (input.startsWith('http://') || input.startsWith('https://') || input.startsWith('file://')) {
+            return input;
+        }
+        return 'https://' + input;
+    },
 
-// Default homepage
-const HOME_URL = "https://duckduckgo.com";
+    searchOrNavigate(input) {
+        if (this.isValidUrl(input)) {
+            return this.formatUrl(input);
+        } else {
+            return window.settingsMgr.getSearchUrl(input);
+        }
+    }
+};
 
-// =========================
-// URL Helpers
-// =========================
-
-function isValidUrl(text) {
-  try {
-    new URL(text);
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function convertInputToURL(input) {
-  input = input.trim();
-
-  if (input.startsWith("http://") || input.startsWith("https://")) {
-    return input;
-  }
-
-  // Domain detection
-  if (input.includes(".") && !input.includes(" ")) {
-    return "https://" + input;
-  }
-
-  // Search query
-  return "https://duckduckgo.com/?q=" + encodeURIComponent(input);
-}
-
-// =========================
-// Navigation
-// =========================
-
-function navigate(input) {
-  const targetURL = convertInputToURL(input);
-
-  webview.loadURL(targetURL);
-}
-
-function goHome() {
-  webview.loadURL(HOME_URL);
-}
-
-function reloadPage() {
-  webview.reload();
-}
-
-function goBack() {
-  if (webview.canGoBack()) {
-    webview.goBack();
-  }
-}
-
-function goForward() {
-  if (webview.canGoForward()) {
-    webview.goForward();
-  }
-}
-
-// =========================
-// Events
-// =========================
-
-goBtn.addEventListener("click", () => {
-  navigate(urlBar.value);
-});
-
-urlBar.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    navigate(urlBar.value);
-  }
-});
-
-backBtn.addEventListener("click", goBack);
-
-forwardBtn.addEventListener("click", goForward);
-
-reloadBtn.addEventListener("click", reloadPage);
-
-homeBtn.addEventListener("click", goHome);
-
-// =========================
-// WebView Events
-// =========================
-
-webview.addEventListener("did-start-loading", () => {
-  reloadBtn.innerHTML = "⏳";
-});
-
-webview.addEventListener("did-stop-loading", () => {
-  reloadBtn.innerHTML = "⟳";
-});
-
-webview.addEventListener("did-navigate", (event) => {
-  urlBar.value = event.url;
-});
-
-webview.addEventListener("did-navigate-in-page", (event) => {
-  urlBar.value = event.url;
-});
-
-webview.addEventListener("page-title-updated", (event) => {
-  document.title = event.title + " - PiFlex";
-});
-
-webview.addEventListener("did-fail-load", (event) => {
-  console.error("Load failed:", event.errorDescription);
-});
-
-function navigate(input) {
-  const targetURL = convertInputToURL(input);
-
-  console.log("Navigating:", targetURL);
-
-  webview.loadURL(targetURL);
-}
-
-// =========================
-// Startup
-// =========================
-
-// window.addEventListener(
-//     "DOMContentLoaded",
-//     () => {
-
-//         goHome();
-//     }
-// );
+window.BrowserHelper = Browser;
