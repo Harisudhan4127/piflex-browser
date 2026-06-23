@@ -1,5 +1,6 @@
 // ==================================
-// PiFlex Tabs and Webview Manager
+// PiFlex Tabs and Webview Manager (Version 1.2.0)
+// Optimized for Low-RAM Background Tab Suspension & Lazy Loading
 // ==================================
 
 class TabManager {
@@ -11,10 +12,10 @@ class TabManager {
         this.urlBar = document.getElementById('urlBar');
 
         this.setupGlobals();
+        this.setupSuspensionChecker();
     }
 
     setupGlobals() {
-        // Expose helper functions globally
         window.createTab = (url) => this.createTab(url);
         window.closeTab = (id) => this.closeTab(id);
         window.switchTab = (id) => this.switchTab(id);
@@ -29,22 +30,22 @@ class TabManager {
             title: 'New Tab',
             url: url,
             loading: false,
-            webview: null
+            webview: null,
+            lastAccessed: Date.now(),
+            suspended: false
         };
 
         this.tabs.push(tab);
         this.createTabElement(tab);
+        
+        // Active focus triggers immediate load; background tabs remain lazy
         this.switchTab(id);
         this.renderTabsUI();
 
-        if (url) {
-            this.navigateTab(tab, url);
-        }
         return tab;
     }
 
     createTabElement(tab) {
-        // Create page view container
         const pageView = document.createElement('div');
         pageView.className = 'page-view';
         pageView.id = `view-${tab.id}`;
@@ -52,6 +53,14 @@ class TabManager {
         // Render Homepage by default if no URL
         if (!tab.url) {
             pageView.innerHTML = this.renderHomepageHtml(tab.id);
+        } else {
+            // Lazy placeholder
+            pageView.innerHTML = `
+                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-light)">
+                    <i class="fas fa-spinner fa-spin" style="font-size:24px; margin-bottom:12px;"></i>
+                    <p style="font-size:13px;">Lazy loading page...</p>
+                </div>
+            `;
         }
         
         this.pagesContainerEl.appendChild(pageView);
@@ -65,9 +74,9 @@ class TabManager {
             <div class="homepage" ${styleAttr}>
                 <div class="homepage-overlay"></div>
                 <div class="homepage-content">
-                    <div class="homepage-logo">🌐</div>
-                    <h1>PiFlex Browser</h1>
-                    <p style="color: var(--text-light); margin-bottom: 20px; font-size: 14px;">Lightweight browsing optimized for Raspberry Pi</p>
+                    <img src="assets/logo.svg" class="homepage-logo" alt="PiFlex Logo">
+                    <h1>PiFlex AI Browser</h1>
+                    <p style="color: var(--text-light); margin-bottom: 24px; font-size: 13px;">Lightweight browsing optimized for Raspberry Pi & Linux</p>
                     
                     <div class="home-search-box">
                         <input type="text" class="home-search-input" id="search-input-${tabId}" placeholder="Search the web with DuckDuckGo..." onkeydown="if(event.key === 'Enter') window.performHomeSearch()">
@@ -102,6 +111,7 @@ class TabManager {
         if (!tab) return;
 
         this.activeTabId = id;
+        tab.lastAccessed = Date.now();
 
         // Toggle active page views
         document.querySelectorAll('.page-view').forEach(el => {
@@ -110,13 +120,17 @@ class TabManager {
         const activeView = document.getElementById(`view-${id}`);
         if (activeView) activeView.classList.add('active');
 
-        // Update Address Bar & Navigation Buttons
+        // Restore tab if it was lazy loaded or suspended
+        if (tab.url && (!tab.webview || tab.suspended)) {
+            tab.suspended = false;
+            this.navigateTab(tab, tab.url);
+        }
+
         this.updateNavigationUI(tab);
         this.renderTabsUI();
     }
 
     closeTab(id) {
-        // Don't close if it is the last tab; instead reset it to home
         if (this.tabs.length === 1) {
             const tab = this.tabs[0];
             this.goHome(tab);
@@ -128,7 +142,6 @@ class TabManager {
 
         const tabToClose = this.tabs[index];
         
-        // Clean up webview and DOM
         if (tabToClose.webview) {
             tabToClose.webview.remove();
         }
@@ -137,7 +150,6 @@ class TabManager {
 
         this.tabs.splice(index, 1);
 
-        // Switch to adjacent tab if active tab was closed
         if (this.activeTabId === id) {
             const nextActiveIndex = Math.max(0, index - 1);
             this.switchTab(this.tabs[nextActiveIndex].id);
@@ -165,12 +177,11 @@ class TabManager {
 
         // If no webview exists for this tab, create one
         if (!tab.webview) {
-            pageView.innerHTML = ''; // Clear homepage layout
+            pageView.innerHTML = ''; // Clear home layout
             
             const wv = document.createElement('webview');
             wv.setAttribute('src', url);
             wv.setAttribute('preload', 'preload.js');
-            // Enable lightweight sandbox/isolation features
             wv.setAttribute('webpreferences', 'contextIsolation=true, nodeIntegration=false');
             
             tab.webview = wv;
@@ -246,7 +257,6 @@ class TabManager {
             this.renderTabsUI();
         });
 
-        // Set title and URL on successful navigation
         webview.addEventListener('did-navigate', (e) => {
             tab.url = e.url;
             if (this.activeTabId === tab.id) {
@@ -283,7 +293,6 @@ class TabManager {
         const forwardBtn = document.getElementById('forwardBtn');
 
         if (tab.webview) {
-            // Webview state might take a split second to load, so poll/check safety
             try {
                 backBtn.disabled = !tab.webview.canGoBack();
                 forwardBtn.disabled = !tab.webview.canGoForward();
@@ -303,7 +312,9 @@ class TabManager {
     renderTabsUI() {
         this.tabsListEl.innerHTML = this.tabs.map(tab => {
             const isActive = tab.id === this.activeTabId;
-            const title = tab.url ? tab.title : 'New Tab';
+            let title = tab.url ? tab.title : 'New Tab';
+            if (tab.suspended) title = `❄️ ${title}`; // Suspended tab icon
+            
             return `
                 <div class="tab ${isActive ? 'active' : ''}" onclick="window.switchTab('${tab.id}')">
                     <span class="tab-title">${title}</span>
@@ -326,6 +337,38 @@ class TabManager {
 
     navigateToHomeQuickLink(url) {
         this.navigateActiveTab(url);
+    }
+
+    // Auto Background tab suspension (reclaims processes and memory for 1GB RAM)
+    setupSuspensionChecker() {
+        setInterval(() => {
+            const now = Date.now();
+            const suspensionThreshold = 10 * 60 * 1000; // 10 minutes
+
+            this.tabs.forEach(tab => {
+                // Suspend background tabs that exceed threshold and have a webview active
+                if (tab.id !== this.activeTabId && tab.url && tab.webview && !tab.suspended) {
+                    if (now - tab.lastAccessed > suspensionThreshold) {
+                        console.log(`Suspending inactive tab to save RAM: ${tab.title}`);
+                        tab.webview.remove();
+                        tab.webview = null;
+                        tab.suspended = true;
+                        
+                        const pageView = document.getElementById(`view-${tab.id}`);
+                        if (pageView) {
+                            pageView.innerHTML = `
+                                <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--text-light); padding:20px; text-align:center;">
+                                    <i class="fas fa-snowflake" style="font-size:32px; color:var(--primary); margin-bottom:12px; opacity:0.8;"></i>
+                                    <p style="font-size:14px; font-weight:600;">Tab Suspended to Save RAM</p>
+                                    <p style="font-size:11px; margin-top:4px;">Click the tab or reload to restore page state.</p>
+                                </div>
+                            `;
+                        }
+                        this.renderTabsUI();
+                    }
+                }
+            });
+        }, 30000); // Check every 30 seconds
     }
 }
 

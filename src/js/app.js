@@ -1,5 +1,5 @@
 // ==================================
-// PiFlex Browser Application Controller
+// PiFlex Browser Application Controller (Version 1.2.0)
 // ==================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Select all text on click for convenient typing
         urlBar.addEventListener('click', () => {
             urlBar.select();
         });
@@ -66,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Keyboard Shortcuts
     document.addEventListener('keydown', (e) => {
         const ctrl = e.ctrlKey || e.metaKey;
+        const shift = e.shiftKey;
 
         // Ctrl + T: New Tab
         if (ctrl && e.key.toLowerCase() === 't') {
@@ -94,6 +94,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (urlBar) {
                 urlBar.focus();
                 urlBar.select();
+            }
+        }
+
+        // Ctrl + Shift + A: Toggle AI Sidebar
+        if (ctrl && shift && e.key.toLowerCase() === 'a') {
+            e.preventDefault();
+            if (window.aiAssistant) {
+                window.aiAssistant.toggleSidebar();
             }
         }
 

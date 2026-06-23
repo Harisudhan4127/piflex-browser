@@ -106,13 +106,15 @@ window.settingsMgr = new SettingsManager();
 document.addEventListener('DOMContentLoaded', () => {
     // Populate settings UI
     const themeSelect = document.getElementById('themeSelect');
-    const searchEngineSelect = document.getElementById('searchEngineSelect');
     const bgImageInput = document.getElementById('bgImageInput');
     const bgUploadBtn = document.getElementById('bgUploadBtn');
     const resetBgBtn = document.getElementById('resetBgBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const closeSettings = document.getElementById('closeSettings');
     const settingsPanel = document.getElementById('settingsPanel');
+    
+    const ollamaHostInput = document.getElementById('ollamaHostInput');
+    const saveOllamaSettingsBtn = document.getElementById('saveOllamaSettingsBtn');
 
     // Load initial configurations
     window.settingsMgr.applyTheme();
@@ -124,15 +126,19 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    if (searchEngineSelect) {
-        // Populate dropdown
-        searchEngineSelect.innerHTML = Object.keys(SEARCH_ENGINES).map(key => 
-            `<option value="${key}">${SEARCH_ENGINES[key].name}</option>`
-        ).join('');
-        
-        searchEngineSelect.value = window.settingsMgr.getSearchEngine();
-        searchEngineSelect.addEventListener('change', (e) => {
-            window.settingsMgr.setSearchEngine(e.target.value);
+    if (ollamaHostInput) {
+        ollamaHostInput.value = localStorage.getItem('piflex_ollama_host') || 'http://localhost:11434';
+    }
+
+    if (saveOllamaSettingsBtn && ollamaHostInput) {
+        saveOllamaSettingsBtn.addEventListener('click', () => {
+            const host = ollamaHostInput.value.trim() || 'http://localhost:11434';
+            localStorage.setItem('piflex_ollama_host', host);
+            alert('Ollama Host connection updated!');
+            if (window.aiAssistant) {
+                window.aiAssistant.ollamaHost = host;
+                window.aiAssistant.loadAvailableModels();
+            }
         });
     }
 
