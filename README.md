@@ -455,7 +455,7 @@ watch -n 1 'ps aux | grep piflex'
 - 📖 **Documentation**: See README.md (this file)
 - 🐛 **Issues**: Report via GitHub Issues
 - 💬 **Discussions**: Join our GitHub Discussions
-- 📧 **Email**: support@piflex.dev
+- 📧 **Email**: harisudhan4127@gmail.com
 
 ---
 
