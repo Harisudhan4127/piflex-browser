@@ -24,6 +24,14 @@ class AiAssistant {
         this.ollamaHost = localStorage.getItem('piflex_ollama_host') || 'http://localhost:11434';
         this.selectedModel = localStorage.getItem('piflex_ai_model') || '';
 
+        // Resource limits (configurable):
+        this.maxContextChars = Math.min(
+            parseInt(localStorage.getItem('piflex_ai_max_context') || '6000', 10) || 6000,
+            24000
+        ); // page text cap to avoid context explosion
+        this.maxHistoryMessages = 12; // keep bounded number of turns
+        this.abortController = null;  // supports cancel-in-flight generation
+
         this.init();
     }
 
@@ -67,6 +75,33 @@ class AiAssistant {
         if (this.explainBtn) {
             this.explainBtn.addEventListener('click', () => this.explainSelection());
         }
+        // Stop button for in-flight generation
+        if (this.sendBtn) {
+            this.sendBtn.dataset.mode = 'send';
+            this.sendBtn.addEventListener('click', () => {
+                if (this.sendBtn.dataset.mode === 'stop') this.cancelInFlight();
+                else this.sendMessage();
+            });
+        }
+    }
+
+    setSendingMode(isSending) {
+        if (!this.sendBtn) return;
+        this.sendBtn.dataset.mode = isSending ? 'stop' : 'send';
+        this.sendBtn.title = isSending ? 'Stop generation' : 'Send Message';
+        this.sendBtn.innerHTML = isSending
+            ? '<i class="fas fa-stop"></i>'
+            : '<i class="fas fa-paper-plane"></i>';
+    }
+
+    cancelInFlight() {
+        if (this.abortController) {
+            this.abortController.abort();
+            this.abortController = null;
+        }
+        this.setSendingMode(false);
+        this.appendMessageToUI('assistant', 'Generation cancelled by user.');
+        this.scrollToBottom();
     }
 
     toggleSidebar(show = null) {
@@ -193,17 +228,28 @@ class AiAssistant {
         this.chatMessagesEl.appendChild(typingIndicator);
         this.scrollToBottom();
 
+        this.setSendingMode(true);
+        this.abortController = new AbortController();
+        const signal = this.abortController.signal;
+
         try {
-            const messages = this.chatHistory.map(m => ({ role: m.role, content: m.content }));
-            
+            // Bounded history: send only the last N turns to keep context window sane
+            const boundedHistory = this.chatHistory.slice(-this.maxHistoryMessages)
+                .map(m => ({ role: m.role, content: m.content }));
+
             const response = await fetch(`${this.ollamaHost}/api/chat`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: this.selectedModel,
-                    messages: messages,
-                    stream: true
-                })
+                    messages: boundedHistory,
+                    stream: true,
+                    options: {
+                        num_predict: 512,     // bounded token generation
+                        num_ctx: 2048,        // bounded context size
+                    }
+                }),
+                signal
             });
 
             // Remove typing indicator
@@ -255,13 +301,24 @@ class AiAssistant {
 
         } catch (e) {
             typingIndicator.remove();
+            if (e.name === 'AbortError') return; // handled by cancelInFlight
             this.appendMessageToUI('assistant', 'Error: Failed to fetch response from Ollama. Make sure the server is reachable.');
             this.scrollToBottom();
+        } finally {
+            this.setSendingMode(false);
+            this.abortController = null;
         }
     }
 
     scrollToBottom() {
         this.chatMessagesEl.scrollTop = this.chatMessagesEl.scrollHeight;
+    }
+
+    // Strip obviously sensitive content before sending page text to the model.
+    sanitizePageText(text) {
+        return String(text)
+            .replace(/^\s*(password|passcode|api\s*key|bearer|authorization|token)\s*:\s*\S.*$/gim, '[redacted]')
+            .replace(/-----BEGIN [A-Z ]+-----[\s\S]*?-----END [A-Z ]+-----/g, '[redacted]');
     }
 
     // Summarize Active Webview Page Text
@@ -279,7 +336,9 @@ class AiAssistant {
             .then(text => {
                 if (text && text.trim().length > 50) {
                     const pageTitle = activeTab.title || 'this page';
-                    const truncated = text.slice(0, 4500); // safety cap to prevent context window explosion
+                    const clean = this.sanitizePageText(text);
+                    // Cap page text to configured context limit
+                    const truncated = clean.slice(0, this.maxContextChars);
                     const prompt = `Summarize the following content from the web page "${pageTitle}". Present key points clearly and concisely:\n\n${truncated}`;
                     this.sendMessage(prompt);
                 } else {

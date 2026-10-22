@@ -114,6 +114,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Bookmark star: toggles bookmark of the current page
+    const starBtn = document.getElementById('bookmarkStarBtn');
+    if (starBtn && window.piflexApi) {
+        const refreshStar = async () => {
+            const tab = window.tabManager.getActiveTab();
+            if (!tab || !tab.url || !/^https?:/i.test(tab.url)) {
+                starBtn.innerHTML = '<i class="far fa-star"></i>';
+                return;
+            }
+            const has = await window.piflexApi.bookmarksHas(tab.url);
+            starBtn.innerHTML = has ? '<i class="fas fa-star"></i>' : '<i class="far fa-star"></i>';
+            starBtn.title = has ? 'Remove bookmark' : 'Bookmark this page';
+            starBtn.dataset.hasBookmark = has ? '1' : '';
+        };
+        starBtn.addEventListener('click', async () => {
+            const tab = window.tabManager.getActiveTab();
+            if (!tab || !tab.url || !/^https?:/i.test(tab.url)) return;
+            if (starBtn.dataset.hasBookmark) {
+                const items = await window.piflexApi.bookmarksList();
+                const target = items.find(b => b.url === tab.url);
+                if (target) await window.piflexApi.bookmarksRemove(target.id);
+            } else {
+                await window.piflexApi.bookmarksAdd({ title: tab.title || tab.url, url: tab.url });
+            }
+            refreshStar();
+            window.dataPanels?.render();
+        });
+        // Re-check star state on navigation
+        document.addEventListener('piflex:urlChanged', refreshStar);
+        const origUpdateNav = window.tabManager.updateNavigationUI.bind(window.tabManager);
+        window.tabManager.updateNavigationUI = (tab) => {
+            origUpdateNav(tab);
+            refreshStar();
+        };
+        refreshStar();
+    }
+
+    // Data panels shortcut: Ctrl+B toggles bookmarks panel, Escape closes it
+    document.addEventListener('keydown', (e) => {
+        const ctrl = e.ctrlKey || e.metaKey;
+        if (ctrl && e.key.toLowerCase() === 'b') {
+            e.preventDefault();
+            if (window.dataPanels) {
+                window.dataPanels.isOpen() ? window.dataPanels.close() : window.dataPanels.open();
+            }
+        }
+        if (e.key === 'Escape' && window.dataPanels?.isOpen()) {
+            window.dataPanels.close();
+        }
+    });
+
     // Create Initial Tab
     window.tabManager.createTab();
     

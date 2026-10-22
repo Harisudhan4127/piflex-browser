@@ -52,6 +52,13 @@
                 </div>
 
                 <div class="nav-group">
+                    <button id="dataPanelBtn" title="Bookmarks / History / Downloads">
+                        <i class="fas fa-folder-open"></i>
+                    </button>
+                    <!-- Bookmark current page star -->
+                    <button id="bookmarkStarBtn" title="Bookmark this page">
+                        <i class="far fa-star"></i>
+                    </button>
                     <!-- AI Sidebar Toggle -->
                     <button id="aiToggleBtn" class="ai-active-btn" title="Toggle AI Assistant Sidebar (Ctrl+Shift+A)">
                         <i class="fas fa-robot"></i>
@@ -125,7 +132,24 @@
         </div>
     </div>
 
-    <!-- SETTINGS DRAWED PANEL -->
+            <!-- DATA PANEL (Bookmarks / History / Downloads) -->
+            <div id="dataPanel">
+                <div class="settings-header">
+                    <h2 id="dataPanelTitle">Bookmarks</h2>
+                    <button id="closeDataPanel" title="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="data-tabs">
+                    <button class="data-tab-btn active" data-tab="bookmarks">Bookmarks</button>
+                    <button class="data-tab-btn" data-tab="history">History</button>
+                    <button class="data-tab-btn" data-tab="downloads">Downloads</button>
+                </div>
+                <div class="data-toolbar" id="dataToolbar"></div>
+                <div class="settings-content" id="dataPanelContent"></div>
+            </div>
+
+            <!-- SETTINGS DRAWED PANEL -->
     <div id="settingsPanel">
         <div class="settings-header">
             <h2>Browser Settings</h2>
@@ -173,6 +197,17 @@
                 </div>
             </div>
 
+            <!-- Privacy: builtin ad & tracker protection -->
+            <div class="setting-group">
+                <label><i class="fas fa-shield-halved"></i> Ad &amp; Tracker Protection</label>
+                <div style="margin-top:6px; display:flex; align-items:center; gap:10px;">
+                    <input type="checkbox" id="adblockEnabledChk" checked>
+                    <span id="adblockStats" style="font-size:12px; color:var(--text-light);">Loading filter rules…</span>
+                </div>
+                <p class="setting-desc">Network-level blocking using EasyList + EasyPrivacy. Per-site disable available from the shield info below.</p>
+                <div id="adblockSiteInfo" style="font-size:12px; margin-top:6px;"></div>
+            </div>
+
             <!-- About Panel -->
             <div class="settings-about">
                 <h3>About PiFlex AI</h3>
@@ -187,6 +222,7 @@
     <script src="js/browser.js"></script>
     <script src="js/tabs.js"></script>
     <script src="js/ai.js"></script>
+    <script src="js/panels.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

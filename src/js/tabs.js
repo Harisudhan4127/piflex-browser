@@ -262,6 +262,9 @@ class TabManager {
             if (this.activeTabId === tab.id) {
                 this.urlBar.value = e.url;
                 this.updateNavigationUI(tab);
+                // Record in browsing history (main process filters unsafe schemes)
+                if (window.piflexApi) window.piflexApi.historyAdd({ url: e.url, title: tab.title });
+                window.dataPanels?.renderAdblockSettings();
             }
             this.renderTabsUI();
         });

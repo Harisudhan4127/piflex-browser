@@ -5,25 +5,20 @@
   "main": "main.js",
   "author": "PiFlex Team",
   "license": "MIT",
-
   "scripts": {
     "start": "electron .",
     "dev": "electron ."
   },
-
   "dependencies": {
     "electron-store": "^8.2.0"
   },
-
   "devDependencies": {
-    "electron": "^28.3.3",
-    "electron-builder": "^24.13.3"
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3"
   },
-
   "build": {
     "appId": "com.piflex.browser",
     "productName": "PiFlex Browser",
-
     "linux": {
       "target": [
         "AppImage",

@@ -2,6 +2,28 @@
 
 **Lightweight, customizable web browser optimized for Raspberry Pi and ARM devices.**
 
+## What's new in v1.3.0
+
+- 🛡 **Real ad & tracker blocking** — EasyList + EasyPrivacy compatible filter lists compiled at runtime (network-request-level blocking in the main process), auto-updating every 4 days with cached lists, per-site protection toggle and blocked-request counters. Filter-list CPU cost stays off the UI thread.
+- ⭐ **Bookmarks** — star button, folder organization, persisted to disk.
+- 🕓 **History** — bounded to 5,000 entries, searchable, delete per entry or clear by time range.
+- ⬇ **Download manager** — progress, pause/resume/cancel, sanitize filenames against path traversal, refuses to open files automatically, flags risky executable types.
+- 🤖 **AI assistant hardening** — stop/cancel button for in-flight generation, bounded context (max 24k chars of page text, configurable), bounded number of chat turns sent, `num_predict`/`num_ctx` limits in Ollama, redaction of obvious credential-like content before page text is sent to the model.
+- 🔒 **Shell hardening** — top-level navigation restricted to safe schemes; `window.open` of the shell opens external URLs in the system browser instead of untrusted contexts; webview attach validates preload context isolation; download/IPC input validated.
+- ⚙️ Hardware-acceleration is now disabled only on low-RAM devices (≤2GB) instead of always.
+
+Run regression tests: `node tests/run-tests.js`
+
+## Known limitations (honest accounting)
+
+- **Local LLM inference (GGUF/llama.cpp)** is NOT integrated. The AI panel uses an **external Ollama instance** (default `http://localhost:11434`). Browsing works fully without any model.
+- **Android packaging** is not supported — Electron does not target Android.
+- **Cosmetic filtering** (hiding ad elements already loaded) is not implemented; blocking is network-request-level only.
+- Extension support remains Electron's ChemAPI subset (unpacked MV2/MV3 in `extensions/`); this is not full Chrome Web Store compatibility.
+- Benchmark numbers elsewhere in this README are historical targets and have not been re-measured against v1.3.0.
+
+---
+
 - 🎯 **<150MB RAM idle** - Minimal memory footprint
 - ⚡ **Fast startup** - Boots in seconds
 - 🎨 **Highly customizable** - Custom homepage background, search engines, themes
