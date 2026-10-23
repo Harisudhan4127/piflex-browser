@@ -255,8 +255,8 @@ export const useBrowser = create<BrowserStore>((set, get) => ({
     const tab = await tabs.create(url, isPrivate).catch(() => null);
     if (tab) {
       set((s) => ({
-        tabs: [...s.tabs, tab],
-        tabOrder: [...s.tabOrder, tab.id],
+        tabs: s.tabs.some((t) => t.id === tab.id) ? s.tabs : [...s.tabs, tab],
+        tabOrder: s.tabOrder.includes(tab.id) ? s.tabOrder : [...s.tabOrder, tab.id],
         activeTabId: tab.id,
         addressValue: url && !url.startsWith('piflex://') ? url : '',
       }));

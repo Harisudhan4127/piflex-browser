@@ -96,7 +96,7 @@ export function MainMenu({ children }: { children: React.ReactNode }) {
           shortcut="Ctrl+Shift+B"
           onClick={() => void updateSettings({ appearance: { showBookmarksBar: !bookmarksBarVisible } })}
         />
-        <Item icon={<BookOpen size={15} />} label="Reading list" onClick={() => openPage('bookmarks?tab=reading')} />
+        <Item icon={<BookOpen size={15} />} label="Reading list" onClick={() => openPage('bookmarks')} />
         <Item icon={<Clock size={15} />} label="History" shortcut="Ctrl+H" onClick={() => openPage('history')} />
         <Item icon={<Download size={15} />} label="Downloads" shortcut="Ctrl+J" onClick={() => openPage('downloads')} />
         <Item icon={<KeyRound size={15} />} label="Password manager" onClick={() => setPanel('passwords')} />
@@ -115,7 +115,7 @@ export function MainMenu({ children }: { children: React.ReactNode }) {
         />
         <Item icon={<Printer size={15} />} label="Print" shortcut="Ctrl+P" onClick={() => window.print()} />
         <DropdownMenuSeparator />
-        <Item icon={<Import size={15} />} label="Import bookmarks and settings" onClick={() => openPage('settings/import')} />
+        <Item icon={<Import size={15} />} label="Import bookmarks" onClick={() => openPage('bookmarks')} />
         <Item icon={<Settings size={15} />} label="Settings" shortcut="Ctrl+," onClick={() => setPanel('settings')} />
         <DropdownMenuSeparator />
         <Item icon={<HelpCircle size={15} />} label="Help" onClick={() => openPage('help')} />

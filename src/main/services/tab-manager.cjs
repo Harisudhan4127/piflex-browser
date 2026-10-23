@@ -188,9 +188,10 @@ class TabManager {
     return { url: engine ? engine.template.replace('{query}', encodeURIComponent(classified.value)) : null };
   }
 
-  create({ url, private: isPrivate = false, active = true, background = false, groupId = null, pinned = false } = {}) {
+  create({ url, private: isPrivate, active = true, background = false, groupId = null, pinned = false } = {}) {
     const id = makeId();
-    const partition = isPrivate ? 'piflex-private' : 'persist:piflex';
+    const privateTab = isPrivate === undefined ? !!this.windowManager.isPrivate : !!isPrivate;
+    const partition = privateTab ? 'piflex-private' : 'persist:piflex';
     const ses = session.fromPartition(partition);
 
     const view = new WebContentsView({
@@ -214,7 +215,7 @@ class TabManager {
       title: '',
       favicon: null,
       loading: false,
-      private: isPrivate,
+      private: privateTab,
       pinned,
       groupId,
       muted: false,
@@ -304,6 +305,18 @@ class TabManager {
     });
     wc.on('render-process-gone', () => this._patch(id, { crashed: true, loading: false }));
 
+    // Find-in-page results are pushed to the shell that owns this tab so the
+    // find bar can show a real match counter and navigate between matches.
+    wc.on('found-in-page', (_event, result) => {
+      this.windowManager.send(IPC.findResult, {
+        tabId: id,
+        requestId: result && result.requestId,
+        matches: (result && result.matches) || 0,
+        activeMatchOrdinal: (result && result.activeMatchOrdinal) || 0,
+        finalUpdate: !!(result && result.finalUpdate),
+      });
+    });
+
     // Block navigation to dangerous top-level schemes; open safe externals in
     // the OS browser instead of inside an untrusted context.
     wc.on('will-navigate', (event, url) => {
@@ -320,7 +333,7 @@ class TabManager {
       }
     });
     wc.setWindowOpenHandler(({ url }) => {
-      if (isSafeExternalUrl(url)) this.create({ url, active: true });
+      if (isSafeExternalUrl(url)) this.create({ url, active: true, private: tab.private });
       return { action: 'deny' };
     });
 
@@ -548,12 +561,30 @@ class TabManager {
   find(id, text, options = {}) {
     const tab = this.tabs.get(id);
     if (!tab) return;
-    tab.view.webContents.findInPage(text, options);
+    const wc = tab.view.webContents;
+    if (!text) {
+      tab.findText = '';
+      wc.stopFindInPage('clearSelection');
+      return;
+    }
+    tab.findText = text;
+    wc.findInPage(text, options);
+  }
+
+  /** Move to the next/previous match for the last query on this tab. */
+  findNext(id, text, forward = true) {
+    const tab = this.tabs.get(id);
+    if (!tab) return;
+    const query = typeof text === 'string' && text ? text : tab.findText || '';
+    if (!query) return;
+    tab.findText = query;
+    tab.view.webContents.findInPage(query, { findNext: true, forward: forward !== false });
   }
 
   stopFind(id, action = 'clearSelection') {
     const tab = this.tabs.get(id);
     if (!tab) return;
+    tab.findText = '';
     tab.view.webContents.stopFindInPage(action);
   }
 

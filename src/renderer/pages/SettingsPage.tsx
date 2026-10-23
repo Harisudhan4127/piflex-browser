@@ -628,6 +628,7 @@ function AiSettings({
 }) {
   const [catalog, setCatalog] = useState<AiModelInfo[]>([]);
   const [installed, setInstalled] = useState<AiInstalledModel[]>([]);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [progress, setProgress] = useState<AiModelProgress | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -638,6 +639,7 @@ function AiSettings({
     if (models) {
       setCatalog(models.catalog);
       setInstalled(models.installed);
+      if (Array.isArray(models.ollamaModels)) setOllamaModels(models.ollamaModels);
     }
     const nextStatus = await aiApi.status().catch(() => null);
     if (nextStatus) setStatus(nextStatus);
@@ -705,13 +707,13 @@ function AiSettings({
       >
         <Switch checked={config.autoSetup} onCheckedChange={(v) => set({ ai: { autoSetup: v } })} />
       </Row>
-      <Row label="Provider" hint="llama.cpp is managed by PiFlex; Ollama and OpenAI-compatible servers use your endpoint.">
+      <Row label="Provider" hint="Ollama uses your local Ollama daemon; llama.cpp is managed directly by PiFlex.">
         <Select
           value={config.provider}
           onChange={(value) => set({ ai: { provider: value } })}
           options={[
+            { value: 'ollama', label: 'Ollama (default)' },
             { value: 'llamacpp', label: 'llama.cpp (local)' },
-            { value: 'ollama', label: 'Ollama' },
             { value: 'openai-compatible', label: 'OpenAI-compatible' },
           ]}
         />
@@ -825,14 +827,73 @@ function AiSettings({
             </div>
           ) : null}
         </>
+      ) : config.provider === 'ollama' ? (
+        <>
+          <Row label="Endpoint" hint="Default is http://127.0.0.1:11434.">
+            <Input
+              className="w-72"
+              value={config.endpoint}
+              onChange={(e) => set({ ai: { endpoint: e.target.value.trim() } })}
+            />
+          </Row>
+          <Row label="Model name" hint="Model name installed in Ollama (defaults to llama3.2).">
+            <div className="flex flex-col gap-2">
+              <Input
+                className="w-72"
+                placeholder={ollamaModels[0] || 'llama3.2'}
+                value={config.modelId || ''}
+                onChange={(e) => set({ ai: { modelId: e.target.value.trim() || null } })}
+              />
+              {ollamaModels.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--color-text-subtle)]">
+                  <span>Detected in Ollama:</span>
+                  {ollamaModels.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => set({ ai: { modelId: m } })}
+                      className={cn(
+                        'rounded border px-1.5 py-0.5 text-[11px] transition-colors',
+                        config.modelId === m
+                          ? 'border-accent bg-accent/10 text-accent font-medium'
+                          : 'border-[var(--color-border)] hover:bg-[var(--color-surface-overlay)] text-[var(--color-text)]',
+                      )}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Row>
+        </>
       ) : (
-        <Row label="Endpoint" hint="For example http://127.0.0.1:11434 for Ollama.">
-          <Input
-            className="w-72"
-            value={config.endpoint}
-            onChange={(e) => set({ ai: { endpoint: e.target.value.trim() } })}
-          />
-        </Row>
+        <>
+          <Row label="Endpoint" hint="For example https://api.openai.com or local endpoint.">
+            <Input
+              className="w-72"
+              value={config.endpoint}
+              onChange={(e) => set({ ai: { endpoint: e.target.value.trim() } })}
+            />
+          </Row>
+          <Row label="Model name" hint="For example gpt-4o-mini">
+            <Input
+              className="w-72"
+              placeholder="gpt-4o-mini"
+              value={config.modelId || ''}
+              onChange={(e) => set({ ai: { modelId: e.target.value.trim() || null } })}
+            />
+          </Row>
+          <Row label="API key" hint="Optional for local endpoints, required for cloud services.">
+            <Input
+              type="password"
+              className="w-72"
+              placeholder="sk-..."
+              value={config.apiKey || ''}
+              onChange={(e) => set({ ai: { apiKey: e.target.value.trim() } })}
+            />
+          </Row>
+        </>
       )}
 
       <Row label="Temperature" hint="Lower is more focused; higher is more creative.">

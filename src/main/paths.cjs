@@ -25,6 +25,7 @@ function getPaths() {
     vault: path.join(data, 'vault.bin'),
     logs: path.join(data, 'logs'),
     settings: path.join(data, 'settings.json'),
+    sessions: path.join(data, 'sessions.json'),
   };
   return cached;
 }

@@ -144,7 +144,10 @@ export function AddressBar() {
             setAddress(addressValue, true);
             e.currentTarget.select();
           }}
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          onBlur={() => {
+            setAddress(addressValue, false);
+            setTimeout(() => setOpen(false), 120);
+          }}
           onKeyDown={onKeyDown}
           spellCheck={false}
           placeholder="Search the web or enter a URL"

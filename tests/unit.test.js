@@ -152,7 +152,7 @@ test('settings clamps values and removes unknown keys', () => {
   assert.strictEqual(settings.tabs.suspendAfterMinutes, 0);
   assert.strictEqual(settings.ai.contextTokens, 32768);
   assert.strictEqual(settings.ai.maxTokens, 32);
-  assert.strictEqual(settings.ai.provider, 'llamacpp');
+  assert.strictEqual(settings.ai.provider, 'ollama');
   assert.strictEqual(settings.unknownTopLevel, undefined);
   assert.strictEqual(settings.tabs.evil, undefined);
 });
@@ -549,6 +549,22 @@ test('AI memory estimate and budget prevent overcommit', () => {
   assert.strictEqual(small.fits, true);
   assert.strictEqual(large.fits, false);
   assert(memory.estimateModelMemoryMB({ fileSizeMB: 800, paramsB: 1, contextTokens: 4096 }) > 800);
+});
+
+test('AI settings default to Ollama and allow user to switch to llama.cpp', () => {
+  const defaults = settingsSchema.normalizeSettings({});
+  assert.strictEqual(defaults.ai.provider, 'ollama');
+  assert.strictEqual(defaults.ai.endpoint, 'http://127.0.0.1:11434');
+
+  const changedToLlama = settingsSchema.normalizeSettings({ ai: { provider: 'llamacpp' } });
+  assert.strictEqual(changedToLlama.ai.provider, 'llamacpp');
+
+  const changedToOpenAi = settingsSchema.normalizeSettings({
+    ai: { provider: 'openai-compatible', endpoint: 'https://api.openai.com', apiKey: 'sk-test' },
+  });
+  assert.strictEqual(changedToOpenAi.ai.provider, 'openai-compatible');
+  assert.strictEqual(changedToOpenAi.ai.endpoint, 'https://api.openai.com');
+  assert.strictEqual(changedToOpenAi.ai.apiKey, 'sk-test');
 });
 
 test('recommended context shrinks under a tight budget', () => {

@@ -63,6 +63,7 @@ export function AiPanel({ onClose }: { onClose: () => void }) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [catalog, setCatalog] = useState<AiModelInfo[]>([]);
   const [installed, setInstalled] = useState<AiInstalledModel[]>([]);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [progress, setProgress] = useState<Record<string, AiModelProgress>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -84,6 +85,7 @@ export function AiPanel({ onClose }: { onClose: () => void }) {
     if (m) {
       setCatalog(m.catalog);
       setInstalled(m.installed);
+      if (Array.isArray(m.ollamaModels)) setOllamaModels(m.ollamaModels);
     }
   }, []);
 
@@ -279,11 +281,17 @@ export function AiPanel({ onClose }: { onClose: () => void }) {
           progress={progress}
           pendingDownload={pendingDownload}
           onToggleEnabled={(enabled) => void updateSettings({ ai: { enabled } }).then(refreshStatus)}
+          onSelectProvider={(provider) => void updateSettings({ ai: { provider } }).then(refreshStatus)}
           onDownload={downloadModel}
           onSelect={selectModel}
           onRemove={removeModel}
           selectedModelId={String(aiSettings.modelId ?? '')}
-          onGoToSettings={() => useBrowser.getState().createTab('piflex://settings')}
+          aiSettings={aiSettings}
+          ollamaModels={ollamaModels}
+          onGoToSettings={() => {
+            useBrowser.getState().setSettingsCategory('ai');
+            useBrowser.getState().setPanel('settings');
+          }}
         />
       ) : (
         <div className="flex h-full flex-col">
@@ -435,10 +443,13 @@ function ModelsView({
   progress,
   pendingDownload,
   onToggleEnabled,
+  onSelectProvider,
   onDownload,
   onSelect,
   onRemove,
   selectedModelId,
+  aiSettings,
+  ollamaModels,
   onGoToSettings,
 }: {
   aiEnabled: boolean;
@@ -449,12 +460,19 @@ function ModelsView({
   progress: Record<string, AiModelProgress>;
   pendingDownload: AiModelProgress | null;
   onToggleEnabled: (enabled: boolean) => void;
+  onSelectProvider: (provider: string) => void;
   onDownload: (modelId: string) => Promise<void>;
   onSelect: (modelId: string) => void;
   onRemove: (model: AiInstalledModel) => void;
   selectedModelId: string;
+  aiSettings: Record<string, unknown>;
+  ollamaModels?: string[];
   onGoToSettings: () => void;
 }) {
+  const provider = status?.provider || 'ollama';
+  const isLlama = provider === 'llamacpp';
+  const isOllama = provider === 'ollama';
+
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-3 py-2.5">
@@ -465,14 +483,70 @@ function ModelsView({
         <Switch checked={aiEnabled} onCheckedChange={onToggleEnabled} />
       </div>
 
+      <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-3 py-2.5">
+        <div>
+          <div className="text-[13px] text-[var(--color-text)]">Provider</div>
+          <div className="text-[11px] text-[var(--color-text-subtle)]">
+            {isOllama
+              ? 'Ollama daemon (default)'
+              : isLlama
+                ? 'llama.cpp (local runtime)'
+                : 'OpenAI-compatible server'}
+          </div>
+        </div>
+        <SimpleSelect
+          value={provider}
+          onChange={onSelectProvider}
+          options={[
+            { value: 'ollama', label: 'Ollama (default)' },
+            { value: 'llamacpp', label: 'llama.cpp (local)' },
+            { value: 'openai-compatible', label: 'OpenAI-compatible' },
+          ]}
+          className="w-44"
+        />
+      </div>
+
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-[12px] text-[var(--color-text-muted)]">
-        <div className="flex items-center gap-2 text-[var(--color-text)]">
-          <Cpu size={14} /> Runtime status
+        <div className="flex items-center gap-2 text-[var(--color-text)] font-medium">
+          <Cpu size={14} /> {isOllama ? 'Ollama status' : isLlama ? 'llama.cpp status' : 'AI endpoint status'}
         </div>
         <div className="mt-1">
-          {status?.ready ? 'Ready' : status?.message || 'Not loaded'}
-          {status?.provider ? ` · ${status.provider}` : ''}
+          {status?.ready ? 'Ready' : status?.message || 'Ready'}
+          {isOllama && ` · ${aiSettings.endpoint ? String(aiSettings.endpoint) : 'http://127.0.0.1:11434'}`}
         </div>
+        {isOllama ? (
+          <div className="mt-1.5 text-[11px] leading-relaxed text-[var(--color-text-subtle)]">
+            Model: <span className="text-[var(--color-text)]">{aiSettings.modelId ? String(aiSettings.modelId) : 'llama3.2 (default)'}</span>
+            <br />
+            Ensure Ollama is running (`ollama serve`). To install a model, run e.g. `ollama pull llama3.2`.
+          </div>
+        ) : null}
+        {isOllama && ollamaModels && ollamaModels.length > 0 ? (
+          <div className="mt-3 space-y-1.5 border-t border-[var(--color-border)] pt-2.5">
+            <div className="text-[11px] font-medium text-[var(--color-text)]">Detected in your Ollama:</div>
+            <div className="flex flex-wrap gap-1.5">
+              {ollamaModels.map((m) => {
+                const isActive = (aiSettings.modelId || ollamaModels[0]) === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => onSelect(m)}
+                    className={cn(
+                      'flex items-center gap-1 rounded border px-2 py-1 text-[11px] transition-colors',
+                      isActive
+                        ? 'border-accent bg-accent/15 text-accent font-medium'
+                        : 'border-[var(--color-border)] hover:bg-[var(--color-surface-overlay)] text-[var(--color-text)]',
+                    )}
+                  >
+                    {isActive ? <Check size={11} /> : null}
+                    {m}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         {status?.enabled ? (
           <button type="button" className="mt-2 text-[11px] text-accent hover:underline" onClick={onGoToSettings}>
             Open AI settings
@@ -480,7 +554,7 @@ function ModelsView({
         ) : null}
       </div>
 
-      {pendingDownload ? (
+      {isLlama && pendingDownload ? (
         <div className="rounded-lg border border-[var(--color-border)] p-3">
           <div className="mb-1 flex items-center justify-between text-[12px]">
             <span>Downloading model…</span>
@@ -497,89 +571,93 @@ function ModelsView({
         </div>
       ) : null}
 
-      <div>
-        <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[var(--color-text-subtle)]">
-          Available models
-        </h3>
-        <div className="space-y-2">
-          {catalog.map((model) => {
-            const fileName = model.url.split('/').pop()?.toLowerCase() ?? '';
-            const isInstalled = installedIds.has(fileName) || status?.installedModels.some((p) => p.toLowerCase().endsWith(fileName));
-            const p = progress[model.id];
-            const downloading = Boolean(p && !p.done);
-            return (
-              <div key={model.id} className="rounded-lg border border-[var(--color-border)] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-[13px] text-[var(--color-text)]">
-                      {model.name}
-                      {selectedModelId === model.id ? <Check size={13} className="text-accent" /> : null}
+      {isLlama ? (
+        <>
+          <div>
+            <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[var(--color-text-subtle)]">
+              Available models (llama.cpp)
+            </h3>
+            <div className="space-y-2">
+              {catalog.map((model) => {
+                const fileName = model.url.split('/').pop()?.toLowerCase() ?? '';
+                const isInstalled = installedIds.has(fileName) || status?.installedModels.some((p) => p.toLowerCase().endsWith(fileName));
+                const p = progress[model.id];
+                const downloading = Boolean(p && !p.done);
+                return (
+                  <div key={model.id} className="rounded-lg border border-[var(--color-border)] p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-[13px] text-[var(--color-text)]">
+                          {model.name}
+                          {selectedModelId === model.id ? <Check size={13} className="text-accent" /> : null}
+                        </div>
+                        <div className="mt-0.5 text-[11px] text-[var(--color-text-subtle)]">
+                          {model.quant} · {formatMB(model.approxSizeMB)} · {model.license}
+                        </div>
+                        <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+                          {model.description}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        {isInstalled ? (
+                          <Button size="sm" variant="secondary" onClick={() => onSelect(model.id)}>
+                            Use
+                          </Button>
+                        ) : (
+                          <Button size="sm" onClick={() => void onDownload(model.id)} disabled={downloading || !aiEnabled}>
+                            {downloading ? <Loader2 size={13} className="animate-spin-slow" /> : <Download size={13} />}
+                            {downloading ? 'Downloading' : 'Download'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-0.5 text-[11px] text-[var(--color-text-subtle)]">
-                      {model.quant} · {formatMB(model.approxSizeMB)} · {model.license}
+                    <a
+                      href={model.source}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        void piflex.openExternal(model.source);
+                      }}
+                      className="mt-1 inline-block text-[10px] text-[var(--color-text-subtle)] hover:text-accent"
+                    >
+                      Source &amp; license
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[var(--color-text-subtle)]">
+              Installed
+            </h3>
+            {installed.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-[var(--color-border)] p-3 text-[12px] text-[var(--color-text-subtle)]">
+                No models installed yet.
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {installed.map((model) => (
+                  <div key={model.path} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-[12px] text-[var(--color-text)]">{model.file}</div>
+                      <div className="text-[11px] text-[var(--color-text-subtle)]">{formatMB(model.sizeBytes / (1024 * 1024))}</div>
                     </div>
-                    <p className="mt-1 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-                      {model.description}
-                    </p>
+                    <Button size="icon-sm" variant="ghost" aria-label="Remove model" onClick={() => onRemove(model)}>
+                      <Trash2 size={13} />
+                    </Button>
                   </div>
-                  <div className="flex shrink-0 flex-col gap-1">
-                    {isInstalled ? (
-                      <Button size="sm" variant="secondary" onClick={() => onSelect(model.id)}>
-                        Use
-                      </Button>
-                    ) : (
-                      <Button size="sm" onClick={() => void onDownload(model.id)} disabled={downloading || !aiEnabled}>
-                        {downloading ? <Loader2 size={13} className="animate-spin-slow" /> : <Download size={13} />}
-                        {downloading ? 'Downloading' : 'Download'}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <a
-                  href={model.source}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    void piflex.openExternal(model.source);
-                  }}
-                  className="mt-1 inline-block text-[10px] text-[var(--color-text-subtle)] hover:text-accent"
-                >
-                  Source &amp; license
-                </a>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <h3 className="mb-2 text-[12px] font-medium uppercase tracking-wide text-[var(--color-text-subtle)]">
-          Installed
-        </h3>
-        {installed.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[var(--color-border)] p-3 text-[12px] text-[var(--color-text-subtle)]">
-            No models installed yet.
+            )}
           </div>
-        ) : (
-          <div className="space-y-1.5">
-            {installed.map((model) => (
-              <div key={model.path} className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-3 py-2">
-                <div className="min-w-0">
-                  <div className="truncate text-[12px] text-[var(--color-text)]">{model.file}</div>
-                  <div className="text-[11px] text-[var(--color-text-subtle)]">{formatMB(model.sizeBytes / (1024 * 1024))}</div>
-                </div>
-                <Button size="icon-sm" variant="ghost" aria-label="Remove model" onClick={() => onRemove(model)}>
-                  <Trash2 size={13} />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      <p className="text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
-        Models are downloaded only when you click Download. The SHA-256 of each finished file is
-        computed for verification. Downloads require internet access; inference works offline.
-      </p>
+          <p className="text-[10px] leading-relaxed text-[var(--color-text-subtle)]">
+            Models are downloaded only when you click Download. The SHA-256 of each finished file is
+            computed for verification. Downloads require internet access; inference works offline.
+          </p>
+        </>
+      ) : null}
     </div>
   );
 }
