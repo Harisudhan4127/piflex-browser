@@ -1,30 +1,110 @@
 {
   "name": "piflex-browser",
-  "version": "1.0.0",
-  "description": "Lightweight browser optimized for Raspberry Pi",
-  "main": "main.js",
-  "author": "PiFlex Team",
+  "version": "2.0.0",
+  "description": "PiFlex Browser — a modern, lightweight, privacy-focused desktop browser",
+  "main": "src/main/main.cjs",
+  "author": "PiFlex Browser",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Harisudhan4127/piflex-browser.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Harisudhan4127/piflex-browser/issues"
+  },
+  "homepage": "https://github.com/Harisudhan4127/piflex-browser#readme",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
-    "start": "electron .",
-    "dev": "electron ."
+    "dev": "concurrently -k -n VITE,ELECTRON -c cyan,magenta \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "cross-env PIFLEX_DEV_SERVER=http://localhost:5123 electron .",
+    "build:renderer": "vite build",
+    "build": "npm run build:renderer",
+    "start": "npm run build:renderer && electron .",
+    "test": "node tests/unit.test.js",
+    "typecheck": "tsc --noEmit",
+    "smoke": "electron . --piflex-smoke-test --piflex-smoke-window",
+    "verify": "npm run typecheck && npm test && npm run build:renderer",
+    "dist": "npm run build && electron-builder",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:mac": "npm run build && electron-builder --mac"
   },
   "dependencies": {
-    "electron-store": "^8.2.0"
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-popover": "^1.1.15",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.7",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "better-sqlite3": "^13.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.548.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.3.1",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^9.2.5",
+    "cross-env": "^10.1.0",
     "electron": "^45.0.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.12"
   },
   "build": {
     "appId": "com.piflex.browser",
     "productName": "PiFlex Browser",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/main/**/*",
+      "src/preload/**/*",
+      "src/shared/**/*",
+      "dist/renderer/**/*",
+      "core/**/*",
+      "package.json"
+    ],
+    "extraResources": [],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "PiFlex-${version}-${arch}.${ext}"
+    },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "category": "Network"
+      "category": "Network",
+      "artifactName": "PiFlex-${version}-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "artifactName": "PiFlex-${version}-${arch}.${ext}"
     }
   }
 }

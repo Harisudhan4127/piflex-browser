@@ -1,0 +1,5 @@
+# Development Environment
+
+Node.js version pinned for this project. Use `nvm` (or `fnm`) to install the correct version.
+
+24.16.0
