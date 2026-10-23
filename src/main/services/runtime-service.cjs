@@ -51,18 +51,19 @@ function assetScore(asset, platform, arch) {
   if (!/\.(zip|tar\.gz|tgz)$/.test(name)) return -1;
   let score = 0;
 
-  if (platform === 'win32') {
-    if (!name.includes('win')) return -1;
-  } else if (platform === 'darwin') {
+    if (platform === 'win32') {
+      if (!name.includes('win')) return -1;
+      // Prefer official binaries and common naming (cpu/avx2)
+    } else if (platform === 'darwin') {
     if (!name.includes('macos') && !name.includes('osx')) return -1;
   } else {
     if (!name.includes('linux') && !name.includes('ubuntu')) return -1;
   }
 
-  const targetArch = arch === 'arm64' ? 'arm64' : arch === 'ia32' ? 'x86' : 'x64';
-  if (name.includes(targetArch)) score += 8;
-  else if (targetArch === 'x64' && (name.includes('x86_64') || name.includes('amd64'))) score += 8;
-  else return -1;
+    const targetArch = arch === 'arm64' ? 'arm64' : arch === 'ia32' ? 'x86' : 'x64';
+    if (name.includes(targetArch)) score += 8;
+    else if (targetArch === 'x64' && (name.includes('x86_64') || name.includes('amd64') || name.includes('win-x64'))) score += 8;
+    else return -1;
 
   if (GPU_KEYWORDS.some((keyword) => name.includes(keyword))) score -= 20;
   if (name.includes('cpu') || name.includes('avx2') || name.includes('noavx')) score += 4;

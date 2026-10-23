@@ -173,7 +173,16 @@ class AdblockService {
     this.installed = true;
     const filter = { urls: ['http://*/*', 'https://*/*'] };
     this.session.webRequest.onBeforeRequest(filter, (details, callback) => {
-      callback({ cancel: this._shouldBlock(details) });
+      try {
+        callback({ cancel: this._shouldBlock(details) });
+      } catch (error) {
+        this.logger.warn('Adblock onBeforeRequest crashed', error.message);
+        try {
+          callback({ cancel: false });
+        } catch {
+          // ignore
+        }
+      }
     });
   }
 

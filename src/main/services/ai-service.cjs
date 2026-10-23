@@ -84,8 +84,8 @@ class AiService {
 
   baseUrl() {
     const config = this.getConfig();
-    if (config.provider === 'ollama') return config.endpoint.replace(/\/+$/, '');
-    if (config.provider === 'openai-compatible') return config.endpoint.replace(/\/+$/, '');
+    if (config.provider === 'ollama') return (config.endpoint || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+    if (config.provider === 'openai-compatible') return (config.endpoint || '').replace(/\/+$/, '');
     return `http://127.0.0.1:${config.port || 18080}`;
   }
 
@@ -320,12 +320,15 @@ class AiService {
       if (!this.server) throw new Error(this.lastError || 'The local model is not ready');
       return this._streamOpenAi(requestId, this.baseUrl() + '/v1/chat/completions', payload, config, false);
     }
-    const base = this.baseUrl();
-    if (!/^https?:\/\//i.test(base)) throw new Error('No valid AI endpoint is configured');
     if (config.provider === 'ollama') {
       return this._streamOllama(requestId, base + '/api/chat', payload, config);
     }
-    return this._streamOpenAi(requestId, base + '/v1/chat/completions', payload, config, true);
+    if (config.provider === 'openai-compatible') {
+      return this._streamOpenAi(requestId, base + '/v1/chat/completions', payload, config, true);
+    }
+    await this.ensureServer();
+    if (!this.server) throw new Error(this.lastError || 'The local model is not ready');
+    return this._streamOpenAi(requestId, this.baseUrl() + '/v1/chat/completions', payload, config, false);
   }
 
   cancel() {
@@ -413,7 +416,9 @@ class AiService {
       let full = '';
       request.on('response', (response) => {
         if (response.statusCode >= 400) {
-          reject(new Error(`Ollama returned HTTP ${response.statusCode}`));
+          const err = new Error(`Ollama returned HTTP ${response.statusCode}`);
+          err.statusCode = response.statusCode;
+          reject(err);
           request.abort();
           return;
         }
