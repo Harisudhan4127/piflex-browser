@@ -144,7 +144,7 @@ export function TabStrip() {
   };
 
   return (
-    <div className="flex h-9 min-w-0 flex-1 items-end gap-1 px-2 pb-1" onWheel={handleWheel}>
+    <div className="flex h-9 min-w-0 flex-1 items-center gap-1 px-2" onWheel={handleWheel}>
       <div className="drag flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         {ordered.map((tab, index) => (
           <TabItem
@@ -163,7 +163,7 @@ export function TabStrip() {
           type="button"
           onClick={() => void createTab()}
           aria-label="New tab"
-          className="no-drag mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-text)]"
+          className="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-text)]"
         >
           <Plus size={16} />
         </button>
@@ -174,7 +174,7 @@ export function TabStrip() {
             type="button"
             aria-label="Close current tab"
             onClick={() => activeTabId && void closeTab(activeTabId)}
-            className="no-drag mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-subtle)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-text)]"
+            className="no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-subtle)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-text)]"
           >
             <X size={14} />
           </button>
