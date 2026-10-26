@@ -1,111 +1,118 @@
 # PiFlex Browser
 
-[![CI](https://github.com/Harisudhan4127/piflex-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Harisudhan4127/piflex-browser/actions/workflows/ci.yml)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.0.0-informational.svg)](CHANGELOG.md)
 
-PiFlex is a lightweight, privacy-focused desktop browser built on Electron, React, and TypeScript. It pairs a hardened Chromium view with a fast, native-feeling shell, a network-level ad/tracker blocker, and an optional on-device AI assistant.
+PiFlex is a lightweight, privacy-focused desktop browser built on Electron, React, and TypeScript. It pairs a hardened Chromium view with a fast native-feeling shell, a network-level ad/tracker blocker, and an optional on-device AI assistant.
 
-## Highlights
+## Overview
 
-- **Privacy first** — tracker/ad blocking at the network layer, per-site exemptions, Do Not Track / Global Privacy Control, and an isolated private-tab session.
-- **Local AI assistant** — curated GGUF models and a managed llama.cpp runtime. First-run setup happens automatically in the background; nothing is sent to a cloud service by default.
-- **Real browser chrome** — tabs, bookmarks bar, history, downloads, passwords, extensions, find-in-page, permissions, and session restore.
-- **Fast internal pages** — rendered in the trusted React shell (`piflex://newtab`, `bookmarks`, `history`, `downloads`, `passwords`, `extensions`, `settings`, `help`, `diagnostics`, `about`).
-- **Cross-platform** — Windows, Linux, and macOS builds via electron-builder. Android is not supported.
+PiFlex runs web content in isolated `WebContentsView` instances while the trusted React shell provides tabs, bookmarks, history, downloads, passwords, extensions, find-in-page, permissions, and session restore. Privileged operations flow through an allow-listed IPC bridge. Nothing is sent to a cloud service by default for AI features.
 
-## Quick Start
+## Features
 
-### Requirements
+- Privacy first — network-layer ad/tracker blocking, per-site exemptions, DNT/GPC, isolated private-tab session
+- Local AI assistant — curated GGUF models + managed llama.cpp runtime, first-run auto-provision
+- Real browser chrome — tabs, bookmarks bar, history, downloads, passwords, extensions, find-in-page, permissions, session restore
+- Fast internal pages — `piflex://newtab`, `bookmarks`, `history`, `downloads`, `passwords`, `extensions`, `settings`, `help`, `diagnostics`, `about`
+- Cross-platform — Windows, Linux, macOS via electron-builder
 
-- Node.js **24** (see `.nvmrc`) and npm 11+
-- Git
-- Platform toolchain needed by Electron / `better-sqlite3` (prebuilt binaries are used where available)
+## Technology Stack
 
-### Install and run
+| Technology | Purpose |
+| --- | --- |
+| Electron 45 | Desktop runtime / main process |
+| React 19 | Frontend UI |
+| TypeScript 5.9 | Language |
+| Vite 7 | Bundler / dev server |
+| Tailwind CSS 4 | Styling |
+| Zustand | State management |
+| better-sqlite3 | Persistence |
+| electron-builder | Packaging |
+
+## Prerequisites
+
+- Node.js >= 20.19.0 (project uses Node 24, see `.nvmrc`)
+- npm 11+
+- Platform toolchain for native modules
+
+## Installation
 
 ```bash
 git clone https://github.com/Harisudhan4127/piflex-browser.git
 cd piflex-browser
 npm ci
-npm run dev
 ```
 
-`npm run dev` starts Vite on port 5123 and launches Electron against the dev server. To run a production-style build locally:
+## Development
 
 ```bash
-npm run start
-```
-
-### Verify your change
-
-```bash
-npm run typecheck
-npm test
+npm run dev          # Vite (port 5123) + Electron
+npm run typecheck    # tsc --noEmit
+npm test             # unit/regression suite
 npm run build:renderer
 npm run smoke
 ```
 
-## Scripts
+## Environment Variables
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Vite dev server + Electron with live reload |
-| `npm run start` | Build the renderer and launch Electron |
-| `npm run build` / `build:renderer` | Production renderer build (`dist/renderer`) |
-| `npm test` | Core unit/regression suite (`tests/unit.test.js`) |
-| `npm run typecheck` | TypeScript project check (`tsc --noEmit`) |
-| `npm run smoke` | Launch with the smoke-test flags and verify an internal page |
-| `npm run dist:win` | Windows NSIS + portable installers |
-| `npm run dist:linux` | Linux AppImage + deb packages |
-| `npm run dist:mac` | macOS dmg + zip packages |
-| `npm run dist` | Package for the current platform |
+| Variable | Purpose | Required | Example |
+| --- | --- | --- | --- |
+| `PIFLEX_DEV_SERVER` | Dev server URL for Electron | Optional | `http://localhost:5123` |
 
-Packaged artifacts are written to `release/`.
+## Build & Distribution
 
-## Project Layout
-
-```text
-core/          Browser-independent logic: URL/search, settings schema, stores, adblock, AI
-src/main/      Electron main process: windows, tabs/views, services, SQLite, IPC handlers
-src/preload/   Allow-listed contextBridge API (`window.piflex`)
-src/renderer/  React 19 shell, browser chrome, and internal pages
-src/shared/    IPC channel map and shared TypeScript types
-tests/         Core unit and regression tests
-docs/          Architecture and development documentation
+```bash
+npm run build        # production renderer build
+npm run dist:win     # Windows NSIS + portable
+npm run dist:linux   # AppImage + deb
+npm run dist:mac     # dmg + zip
 ```
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full process model, IPC contract, security boundaries, and subsystem details.
+Artifacts written to `release/`.
 
-## Configuration and Data
+## Testing
 
-PiFlex keeps user data in Electron's `userData/data` directory:
+```bash
+npm test
+npm run typecheck
+npm run verify       # typecheck + test + build
+```
 
-- `piflex.sqlite` — bookmarks, history, credentials, autofill
-- `settings.json` — user preferences
-- `filters/` — cached ad/tracker lists
-- `models/` and `runtime/` — local AI assets
-- `extensions/`, `vault.bin`, `logs/`
+## Security & Privacy
 
-These files are never committed to the repository.
+- Web content isolated: `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
+- Preload exposes only allow-listed IPC channels
+- Ad blocking network-level only; no TLS interception
+- Page/selection text redacted before AI model input
+- Report vulnerabilities privately per `SECURITY.md`
 
-## Security
+## Project Structure
 
-- Web content runs isolated from Node (`nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`).
-- The preload bridge exposes only allow-listed IPC channels.
-- Ad blocking is network-level only; PiFlex does not perform TLS interception or claim cosmetic filtering.
-- Page and selection text are treated as untrusted and redacted before being sent to an AI model.
+```
+core/          Browser-independent logic
+src/main/      Electron main process
+src/preload/   Context bridge
+src/renderer/  React shell + internal pages
+src/shared/    IPC channel map + types
+tests/         Unit/regression tests
+docs/          Documentation
+```
 
-Please report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Do not open a public issue for a security report.
+## Troubleshooting
+
+- Native module ABI mismatch: rebuild `better-sqlite3` for Electron
+- Missing build tools on Windows: install Visual Studio Build Tools
+- Dev server not reachable: ensure Vite on port 5123
 
 ## Contributing
 
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, architecture rules, commit conventions, and the pull-request checklist. By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
-
-## Versioning
-
-This project follows [Semantic Versioning](https://semver.org/). Notable changes are documented in [CHANGELOG.md](CHANGELOG.md). Releases are tagged `vX.Y.Z` and built by the release workflow.
+See `CONTRIBUTING.md`. By participating you agree to the Code of Conduct.
 
 ## License
 
 Proprietary © 2026 Harisudhan Baskaran. All rights reserved. See [LICENSE](LICENSE).
+
+## Acknowledgments
+
+Built on Electron, React, TypeScript, Vite, Tailwind CSS, better-sqlite3, and llama.cpp.
