@@ -1,7 +1,7 @@
 # PiFlex Browser
 
 [![CI](https://github.com/Harisudhan4127/piflex-browser/actions/workflows/ci.yml/badge.svg)](https://github.com/Harisudhan4127/piflex-browser/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2.0.0-informational.svg)](CHANGELOG.md)
 
 PiFlex is a lightweight, privacy-focused desktop browser built on Electron, React, and TypeScript. It pairs a hardened Chromium view with a fast, native-feeling shell, a network-level ad/tracker blocker, and an optional on-device AI assistant.
@@ -108,4 +108,4 @@ This project follows [Semantic Versioning](https://semver.org/). Notable changes
 
 ## License
 
-[MIT](LICENSE) © PiFlex Browser contributors.
+Proprietary © 2026 Harisudhan Baskaran. All rights reserved. See [LICENSE](LICENSE).
