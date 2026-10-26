@@ -1,7 +1,9 @@
 # PiFlex Browser
 
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2.0.0-informational.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](CHANGELOG.md)
+[![Platform](https://img.shields.io/badge/platform-Win%20%7C%20Linux%20%7C%20Mac-lightgrey.svg)](#)
+[![Node](https://img.shields.io/badge/node-%3E%3D20.19.0-green.svg)](#)
 
 PiFlex is a lightweight, privacy-focused desktop browser built on Electron, React, and TypeScript. It pairs a hardened Chromium view with a fast native-feeling shell, a network-level ad/tracker blocker, and an optional on-device AI assistant.
 
@@ -86,6 +88,18 @@ npm run verify       # typecheck + test + build
 - Ad blocking network-level only; no TLS interception
 - Page/selection text redacted before AI model input
 - Report vulnerabilities privately per `SECURITY.md`
+
+## Architecture
+
+```mermaid
+flowchart LR
+  R[Renderer React] -->|IPC| P[Preload Bridge]
+  P --> M[Main Process]
+  M --> DB[(SQLite)]
+  M --> AB[Adblock Service]
+  M --> AI[AI Service]
+  M --> WV[WebContentsView]
+```
 
 ## Project Structure
 
