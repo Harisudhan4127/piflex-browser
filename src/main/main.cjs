@@ -14,6 +14,7 @@ const { AutofillService } = require('./db/autofill-service.cjs');
 
 const { SettingsService } = require('./services/settings-service.cjs');
 const { WindowManager } = require('./services/window-manager.cjs');
+const { WindowRegistry } = require('./services/window-registry.cjs');
 const { TabManager, DEFAULT_URL } = require('./services/tab-manager.cjs');
 const { AdblockService } = require('./services/adblock-service.cjs');
 const { DownloadService } = require('./services/download-service.cjs');
@@ -28,6 +29,7 @@ const { registerIpc } = require('./ipc/register.cjs');
 const { IPC } = require('../shared/ipc.cjs');
 const { FILTER_LISTS } = require('../../core/adblock/lists');
 const { normalizeCustomEngines, getEngine } = require('../../core/search');
+const { SessionStore } = require('../../core/stores/sessions');
 
 const IS_SMOKE = process.argv.includes('--piflex-smoke-test');
 const IS_SMOKE_WINDOW = process.argv.includes('--piflex-smoke-window');
@@ -68,26 +70,77 @@ class PiFlexApp {
     this.services.credentials = new CredentialService(db, logger);
     this.services.autofill = new AutofillService(db, logger);
 
-    // Windows + sessions.
-    this.services.windows = new WindowManager({
-      preloadPath: path.join(APP_ROOT, 'src', 'preload', 'index.cjs'),
-      devServerUrl: DEV_SERVER,
-      shellFile: path.join(APP_ROOT, 'dist', 'renderer', 'index.html'),
-      logger,
-    });
+    // Per-window contexts. Each window owns its WindowManager (native views)
+    // and TabManager (tabs) so multi-window and private windows cannot leak
+    // state into each other.
+    this.services.windows = new WindowRegistry();
+    this.services.sessionStore = new SessionStore(paths.sessions);
+    this.sessionRestored = false;
+
+    // Facade for callers that are not scoped to a window (diagnostics,
+    // shutdown). Request-scoped IPC resolves the tab manager from event.sender.
+    const getActiveTm = () => {
+      const context = this.services.windows.active();
+      return context ? context.tabManager : null;
+    };
+    this.services.tabs = {
+      forSender: (sender) => {
+        const context = this.services.windows.forSender(sender);
+        return context ? context.tabManager : null;
+      },
+      active: getActiveTm,
+      get activeTabId() {
+        const tm = getActiveTm();
+        return tm ? tm.activeTabId : null;
+      },
+      all: () => this.services.windows.all().map((context) => context.tabManager),
+      listTabs: () => {
+        const active = getActiveTm();
+        return active ? active.listTabs() : [];
+      },
+      create: (...args) => getActiveTm()?.create(...args),
+      close: (...args) => getActiveTm()?.close(...args),
+      activate: (...args) => getActiveTm()?.activate(...args),
+      navigate: (...args) => getActiveTm()?.navigate(...args),
+      navigateAction: (...args) => getActiveTm()?.navigateAction(...args),
+      duplicate: (...args) => getActiveTm()?.duplicate(...args),
+      closeOthers: (...args) => getActiveTm()?.closeOthers(...args),
+      move: (...args) => getActiveTm()?.move(...args),
+      setPinned: (...args) => getActiveTm()?.setPinned(...args),
+      setMuted: (...args) => getActiveTm()?.setMuted(...args),
+      setZoom: (...args) => getActiveTm()?.setZoom(...args),
+      setGroup: (...args) => getActiveTm()?.setGroup(...args),
+      reorder: (...args) => getActiveTm()?.reorder(...args),
+      find: (...args) => getActiveTm()?.find(...args),
+      findNext: (...args) => getActiveTm()?.findNext(...args),
+      stopFind: (...args) => getActiveTm()?.stopFind(...args),
+      setBounds: (...args) => getActiveTm()?.setBounds(...args),
+      setViewVisible: (...args) => getActiveTm()?.setViewVisible(...args),
+      serialize: (...args) => getActiveTm()?.serialize(...args),
+      serializeAll: () => getActiveTm()?.serializeAll() || { activeTabId: null, tabOrder: [], tabs: {} },
+      extractPageText: (...args) => getActiveTm()?.extractPageText(...args),
+      extractSelection: (...args) => getActiveTm()?.extractSelection(...args),
+      destroyAll: () => this.services.windows.all().forEach((c) => c.tabManager?.destroyAll()),
+    };
 
     this._configureSessions(settings);
 
-    // Network-level protections and downloads attach to the shared session.
+    // Network-level protections and downloads attach to both the persistent
+    // and the private session; private tabs get the same blocking as normal
+    // tabs.
     const shared = session.fromPartition('persist:piflex');
+    const privateSession = session.fromPartition('piflex-private');
+    this.services.sharedSession = shared;
+    this.services.privateSession = privateSession;
+
     this.services.adblock = new AdblockService({
-      session: shared,
+      sessions: [shared, privateSession],
       settingsService: settings,
       filtersDir: paths.filters,
       cacheDir: paths.cache,
       logger,
       net,
-      onStats: (stats) => this.services.windows.send(IPC.privacyStats, stats),
+      onStats: (stats) => this.services.windows.broadcast(IPC.privacyStats, stats),
     });
 
     this.services.downloads = new DownloadService({
@@ -96,16 +149,16 @@ class PiFlexApp {
       downloadDirectory,
       logger,
       shell,
-      onUpdate: (item) => this.services.windows.send(IPC.downloadUpdated, item),
+      onUpdate: (item) => this.services.windows.broadcast(IPC.downloadUpdated, item),
     });
     this.services.downloads.attach(shared);
 
     this.services.permissions = new PermissionService({ settingsService: settings, logger });
     this.services.permissions.onRequest((request) =>
-      this.services.windows.send(IPC.permissionRequested, request),
+      this.services.windows.broadcast(IPC.permissionRequested, request),
     );
     this.services.permissions.attach(shared);
-    this.services.permissions.attach(session.fromPartition('piflex-private'));
+    this.services.permissions.attach(privateSession);
 
     this.services.extensions = new ExtensionService({
       session: shared,
@@ -124,7 +177,7 @@ class PiFlexApp {
       downloadService: this.services.downloads,
       credentialService: this.services.credentials,
       autofillService: this.services.autofill,
-      sessions: [shared, session.fromPartition('piflex-private')],
+      sessions: [shared, privateSession],
       logger,
     });
 
@@ -132,13 +185,13 @@ class PiFlexApp {
       modelsDir: paths.models,
       logger,
       net,
-      onProgress: (payload) => this.services.windows.send(IPC.aiModelProgress, payload),
+      onProgress: (payload) => this.services.windows.broadcast(IPC.aiModelProgress, payload),
     });
     this.services.runtime = new RuntimeService({
       runtimeDir: paths.runtime,
       logger,
       net,
-      onProgress: (payload) => this.services.windows.send(IPC.aiModelProgress, payload),
+      onProgress: (payload) => this.services.windows.broadcast(IPC.aiModelProgress, payload),
     });
     this.services.ai = new AiService({
       settingsService: settings,
@@ -148,8 +201,8 @@ class PiFlexApp {
       modelService: this.services.models,
       logger,
       net,
-      onStatus: (status) => this.services.windows.send(IPC.aiStatus, status),
-      onStream: (payload) => this.services.windows.send(IPC.aiStream, payload),
+      onStatus: (status) => this.services.windows.broadcast(IPC.aiStatus, status),
+      onStream: (payload) => this.services.windows.broadcast(IPC.aiStream, payload),
     });
 
     this.services.hardwareInfo = () => ({
@@ -167,6 +220,9 @@ class PiFlexApp {
       }));
       const totalAppMB = metrics.reduce((sum, item) => sum + item.memoryMB, 0);
       const tabs = this.services.tabs.listTabs();
+      const activeTabs = this.services.windows
+        .all()
+        .filter((context) => context.tabManager.activeTabId).length;
       const mainUsage = process.memoryUsage();
       return {
         processes: metrics,
@@ -175,7 +231,7 @@ class PiFlexApp {
         system: hardwareInfo(),
         tabs: {
           total: tabs.length,
-          active: tabs.filter((t) => t.id === this.services.tabs.activeTabId).length,
+          active: activeTabs,
           private: tabs.filter((t) => t.private).length,
           internal: tabs.filter((t) => String(t.url).startsWith('piflex://')).length,
           suspended: tabs.filter((t) => t.suspended).length,
@@ -195,28 +251,13 @@ class PiFlexApp {
       }));
     };
 
-    // Tabs are created once the window exists (they need a content view).
-    this.services.tabs = new TabManager({
-      windowManager: this.services.windows,
-      settingsService: settings,
-      historyService: this.services.history,
-      logger,
-      defaultSearchEngine: () =>
-        getEngine(settings.get().search.engineId, normalizeCustomEngines(settings.get().search.custom)),
-      onStateChange: (state) => this.services.windows.send(IPC.windowState, state),
-      onTabEvent: (event) => {
-        if (event.type === 'updated') this.services.windows.send(IPC.tabUpdated, event.tab);
-        else if (event.type === 'created') this.services.windows.send(IPC.tabCreated, event.tab);
-        else if (event.type === 'removed') this.services.windows.send(IPC.tabRemoved, event.tabId);
-      },
-      onPermission: (ses) => this.services.permissions.attach(ses),
-      onDownload: () => {},
-    });
-
     this.services.onNewWindow = (isPrivate) => this.openWindow({ private: isPrivate });
 
     registerIpc(this.services, {
-      onTabActivate: (id) => this.services.tabs.activate(id),
+      onTabActivate: (event, id) => {
+        const context = this.services.windows.forSender(event && event.sender);
+        if (context) context.tabManager.activate(id);
+      },
       onPermissionRespond: (payload) => this.services.permissions.respond(payload.id, payload),
       onAiCancel: () => this.services.ai.cancel(),
     });
@@ -259,21 +300,149 @@ class PiFlexApp {
     }
   }
 
-  openWindow({ private: isPrivate = false } = {}) {
-    const window = this.services.windows.create({});
-    window.webContents.once('did-finish-load', () => {
-      // Open a first tab after the shell has loaded and can receive events.
-      const restored = this._restoreSessionTabs(isPrivate);
-      if (!restored) this.services.tabs.create({ url: DEFAULT_URL, active: true, background: true });
-      this.services.windows.send(IPC.windowState, this.services.tabs.serializeAll());
+  createWindowContext({ private: isPrivate = false } = {}) {
+    const settings = this.services.settings;
+    const logger = this.services.logger;
+    const windowManager = new WindowManager({
+      preloadPath: path.join(APP_ROOT, 'src', 'preload', 'index.cjs'),
+      devServerUrl: DEV_SERVER,
+      shellFile: path.join(APP_ROOT, 'dist', 'renderer', 'index.html'),
+      logger,
     });
-    return window;
+    const window = windowManager.create({ private: isPrivate });
+
+    const tabManager = new TabManager({
+      windowManager,
+      settingsService: settings,
+      historyService: this.services.history,
+      logger,
+      shellSession: isPrivate ? this.services.privateSession : this.services.sharedSession,
+      defaultSearchEngine: () =>
+        getEngine(settings.get().search.engineId, normalizeCustomEngines(settings.get().search.custom)),
+      onStateChange: (state) => windowManager.send(IPC.windowState, state),
+      onTabEvent: (event) => {
+        if (event.type === 'updated') windowManager.send(IPC.tabUpdated, event.tab);
+        else if (event.type === 'created') windowManager.send(IPC.tabCreated, event.tab);
+        else if (event.type === 'removed') windowManager.send(IPC.tabRemoved, event.tabId);
+      },
+      onPermission: (ses) => this.services.permissions.attach(ses),
+      onDownload: () => {},
+    });
+
+    const context = {
+      id: window.webContents.id,
+      private: !!isPrivate,
+      window,
+      windowManager,
+      tabManager,
+      restored: false,
+    };
+    this.services.windows.add(context);
+
+    window.on('closed', () => {
+      this.services.windows.remove(context.id);
+      this._onWindowClosed(context);
+    });
+
+    return context;
   }
 
-  _restoreSessionTabs(isPrivate) {
+  openWindow({ private: isPrivate = false } = {}) {
+    const context = this.createWindowContext({ private: isPrivate });
+    context.window.webContents.once('did-finish-load', () => {
+      // Open a first tab after the shell has loaded and can receive events.
+      const restored = this._restoreSessionTabs(context);
+      if (!restored) context.tabManager.create({ url: DEFAULT_URL, active: true, background: true });
+      context.windowManager.send(IPC.windowState, context.tabManager.serializeAll());
+    });
+    return context.window;
+  }
+
+  _restoreSessionTabs(context) {
+    if (context.private) return false;
     const settings = this.services.settings.get();
-    if (isPrivate || !settings.startup.restoreSession) return false;
-    return false; // session persistence of open tabs is a follow-up; never fabricate state
+    if (!settings.startup.restoreSession) return false;
+    // Only the first normal window restores the saved session; windows opened
+    // later start on a new-tab page.
+    if (this.sessionRestored) return false;
+    this.sessionRestored = true;
+    const session = this.services.sessionStore.getSession();
+    if (!session.tabs.length) return false;
+    let activeId = null;
+    session.tabs.forEach((tab, index) => {
+      const created = context.tabManager.create({ url: tab.url, active: false, background: true });
+      if (index === session.activeIndex && created) activeId = created.id;
+    });
+    if (activeId) context.tabManager.activate(activeId);
+    return true;
+  }
+
+  _onWindowClosed(context) {
+    const remaining = this.services.windows
+      .all()
+      .filter((item) => item !== context && !item.private);
+    // Persist before destroying the tabs, and only when this was the last
+    // normal window (closing one of several must not overwrite the session
+    // with the window that just went away).
+    if (!context.private && remaining.length === 0) this.saveSession(context);
+    try {
+      context.tabManager.destroyAll();
+    } catch {
+      // ignore
+    }
+    if (context.private) this._clearPrivateSessionIfIdle();
+  }
+
+  saveSession(context) {
+    const store = this.services.sessionStore;
+    if (!store) return;
+    const target =
+      context ||
+      this.services.windows.active() ||
+      this.services.windows.all().find((item) => !item.private);
+    if (!target || target.private) return;
+    let state;
+    try {
+      state = target.tabManager.serializeAll();
+    } catch {
+      return;
+    }
+    const tabs = [];
+    let activeIndex = 0;
+    for (const id of state.tabOrder) {
+      const tab = state.tabs[id];
+      if (!tab || !/^https?:\/\//i.test(String(tab.url || ''))) continue;
+      if (id === state.activeTabId) activeIndex = tabs.length;
+      tabs.push({ url: tab.url, title: tab.title });
+    }
+    if (!tabs.length) store.clear();
+    else store.saveSession(tabs, activeIndex);
+    store.flush();
+  }
+
+  _clearPrivateSessionIfIdle() {
+    if (this.services.windows.all().some((context) => context.private)) return;
+    const ses = this.services.privateSession;
+    if (!ses) return;
+    Promise.all([ses.clearStorageData(), ses.clearCache()]).catch((error) => {
+      this.services.logger.warn('Private session cleanup failed', error.message);
+    });
+  }
+
+  async clearDataOnExit() {
+    try {
+      await this.services.trust.clear({
+        history: true,
+        downloads: true,
+        credentials: true,
+        cookies: true,
+        cache: true,
+      });
+      this.services.sessionStore.clear();
+      this.services.sessionStore.flush();
+    } catch (error) {
+      this.services.logger.warn('Clear-on-exit failed', error.message);
+    }
   }
 
   async run() {
@@ -298,7 +467,13 @@ class PiFlexApp {
 
     if (this.smoke && IS_SMOKE_WINDOW) {
       // Windowed smoke: surface renderer errors, then exit so CI does not hang.
-      const w = this.services.windows.window;
+      const context = this.services.windows.active();
+      const w = context ? context.window : null;
+      if (!w) {
+        console.log('[smoke] no window context');
+        app.exit(1);
+        return;
+      }
       w.webContents.on('console-message', (event) => {
         const severity = typeof event.level === 'number' ? event.level : 0;
         if (severity >= 2) console.error('[renderer]', event.message);
@@ -306,8 +481,8 @@ class PiFlexApp {
       w.webContents.once('did-finish-load', async () => {
         this.services.logger.info('Smoke window loaded');
         // Exercise an internal page so a broken bridge/render path fails the smoke test.
-        const active = this.services.tabs.activeTabId;
-        if (active) this.services.tabs.navigate(active, 'piflex://settings');
+        const active = context.tabManager.activeTabId;
+        if (active) context.tabManager.navigate(active, 'piflex://settings');
         const deadline = Date.now() + 5000;
         let ok = false;
         while (Date.now() < deadline) {

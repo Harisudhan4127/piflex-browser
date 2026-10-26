@@ -295,6 +295,7 @@ export interface AiSettingsConfig {
   autoSetup: boolean;
   provider: 'llamacpp' | 'ollama' | 'openai-compatible';
   endpoint: string;
+  apiKey?: string;
   modelId: string | null;
   modelPath: string | null;
   runtimePath: string | null;

@@ -1,21 +1,52 @@
-MIT License
+# PROPRIETARY SOFTWARE LICENSE
+## ALL RIGHTS RESERVED
 
-Copyright (c) 2026 PiFlex Browser contributors
+Copyright © 2026 Harisudhan Baskaran. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## 1. Ownership
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+This software, including its source code, object code, design, architecture, features, and associated documentation (collectively, the "Software"), is the proprietary property of Harisudhan Baskaran ("Copyright Holder"), unless otherwise stated.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+## 2. Restrictions
+
+No individual or entity may, without the prior written permission of the Copyright Holder:
+
+- Use, copy, reproduce, or redistribute the Software, in whole or in part.
+- Modify, adapt, translate, or create derivative works based on the Software.
+- Publish, distribute, sublicense, sell, lease, or commercially exploit the Software.
+- Incorporate the Software or any substantial portion of it into another product or service.
+- Remove, alter, or obscure copyright notices or proprietary rights notices.
+
+## 3. No License Granted
+
+No license, permission, or other rights, whether express, implied, or otherwise, are granted under this notice, except where expressly authorized in writing by the Copyright Holder or required by applicable law.
+
+Access to, viewing of, or availability of the Software through a public repository does not, by itself, grant permission to use, reproduce, modify, or redistribute it.
+
+## 4. Third-Party Components
+
+The Software may include or depend on third-party libraries, tools, or components that are subject to their own licenses. Those components remain subject to their respective license terms. Nothing in this notice overrides applicable third-party license obligations.
+
+## 5. Disclaimer of Warranty
+
+To the fullest extent permitted by applicable law, the Software is provided "AS IS" and without warranties of any kind, express or implied, including warranties of merchantability, fitness for a particular purpose, and non-infringement.
+
+## 6. Limitation of Liability
+
+To the fullest extent permitted by applicable law, the Copyright Holder shall not be liable for any damages arising out of or related to the use of, inability to use, or distribution of the Software, subject to any liability that cannot lawfully be excluded or limited.
+
+## 7. Enforcement
+
+Unauthorized use, reproduction, modification, or distribution of the Software may result in legal action or other remedies available under applicable law.
+
+## 8. Permissions and Contact
+
+For commercial licensing, authorized use, redistribution, contributions, or other permissions, obtain prior written authorization from the Copyright Holder.
+
+Copyright Holder: Harisudhan Baskaran
+
+## 9. Reservation of Rights
+
+All rights not expressly granted in writing are reserved by the Copyright Holder.
+
+**END OF LICENSE**

@@ -38,8 +38,9 @@ const DEFAULT_SETTINGS = Object.freeze({
   ai: {
     enabled: true,
     autoSetup: true,
-    provider: 'llamacpp',
+    provider: 'ollama',
     endpoint: 'http://127.0.0.1:11434',
+    apiKey: '',
     modelId: null,
     modelPath: null,
     runtimePath: null,
@@ -172,6 +173,7 @@ function normalizeSettings(raw) {
   const merged = mergeKnown(DEFAULT_SETTINGS, raw);
   const custom = normalizeCustomEngines(merged.search.custom);
   const allowedLists = new Set(FILTER_LIST_IDS);
+  const hasExplicitFilterLists = isPlainObject(raw) && isPlainObject(raw.privacy) && Array.isArray(raw.privacy.filterListIds);
   const filterListIds = sanitizeStringList(
     merged.privacy.filterListIds,
     FILTER_LIST_IDS.length,
@@ -221,7 +223,7 @@ function normalizeSettings(raw) {
       adblock: !!merged.privacy.adblock,
       cosmeticFiltering: !!merged.privacy.cosmeticFiltering,
       sendDoNotTrack: !!merged.privacy.sendDoNotTrack,
-      filterListIds: filterListIds.length ? filterListIds : ['easylist', 'easyprivacy'],
+      filterListIds: hasExplicitFilterLists ? filterListIds : (filterListIds.length ? filterListIds : ['easylist', 'easyprivacy']),
       clearDataOnExit: !!merged.privacy.clearDataOnExit,
       historyEnabled: !!merged.privacy.historyEnabled,
     },
@@ -233,8 +235,9 @@ function normalizeSettings(raw) {
     ai: {
       enabled: merged.ai.enabled !== false,
       autoSetup: merged.ai.autoSetup !== false,
-      provider: oneOf(merged.ai.provider, ['llamacpp', 'ollama', 'openai-compatible'], 'llamacpp'),
+      provider: oneOf(merged.ai.provider, ['ollama', 'llamacpp', 'openai-compatible'], 'ollama'),
       endpoint: String(merged.ai.endpoint || 'http://127.0.0.1:11434').slice(0, 512),
+      apiKey: merged.ai.apiKey ? String(merged.ai.apiKey).slice(0, 512) : '',
       modelId: merged.ai.modelId ? String(merged.ai.modelId).slice(0, 128) : null,
       modelPath: merged.ai.modelPath ? String(merged.ai.modelPath).slice(0, 1024) : null,
       runtimePath: merged.ai.runtimePath ? String(merged.ai.runtimePath).slice(0, 1024) : null,

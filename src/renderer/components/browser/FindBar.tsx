@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ChevronUp, ChevronDown, X } from 'lucide-react';
 import { useBrowser } from '@/store/browser-store';
-import { tabs as tabsApi, win } from '@/lib/api';
+import { tabs as tabsApi } from '@/lib/api';
 
 export function FindBar() {
   const { find, setFindQuery, closeFind, activeTabId } = useBrowser();
@@ -9,12 +9,6 @@ export function FindBar() {
 
   useEffect(() => {
     if (find.open) inputRef.current?.focus();
-  }, [find.open]);
-
-  useEffect(() => {
-    if (!find.open) return;
-    win.setViewVisible(false);
-    return () => win.setViewVisible(true);
   }, [find.open]);
 
   if (!find.open) return null;
@@ -28,7 +22,7 @@ export function FindBar() {
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            if (activeTabId) void tabsApi.find(activeTabId, find.query);
+            if (activeTabId) void tabsApi.findNext(activeTabId, find.query, !e.shiftKey);
           } else if (e.key === 'Escape') {
             closeFind();
           }
@@ -43,7 +37,7 @@ export function FindBar() {
       <button
         type="button"
         aria-label="Previous match"
-        onClick={() => activeTabId && void tabsApi.find(activeTabId, find.query)}
+        onClick={() => activeTabId && void tabsApi.findNext(activeTabId, find.query, false)}
         className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-overlay)]"
       >
         <ChevronUp size={15} />
@@ -51,7 +45,7 @@ export function FindBar() {
       <button
         type="button"
         aria-label="Next match"
-        onClick={() => activeTabId && void tabsApi.find(activeTabId, find.query)}
+        onClick={() => activeTabId && void tabsApi.findNext(activeTabId, find.query, true)}
         className="rounded p-1 text-[var(--color-text-muted)] hover:bg-[var(--color-surface-overlay)]"
       >
         <ChevronDown size={15} />

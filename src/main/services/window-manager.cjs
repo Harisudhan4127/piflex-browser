@@ -2,6 +2,7 @@
 
 const { BrowserWindow, shell, nativeTheme } = require('electron');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const { isSafeExternalUrl } = require('../../../core/url');
 
 const SHELL_BACKGROUND = '#17191D';
@@ -21,15 +22,17 @@ class WindowManager {
     this.attachedView = null;
     this.views = new Set();
     this.onExternal = null;
+    this.isPrivate = false;
   }
 
   rendererUrl() {
     if (this.devServerUrl) return this.devServerUrl;
     // Loaded from disk in production; internal pages append a route query.
-    return 'file://' + this.shellFile.replace(/\\/g, '/');
+    return pathToFileURL(this.shellFile).href;
   }
 
-  create({ title = 'PiFlex' } = {}) {
+  create({ title = 'PiFlex', private: isPrivate = false } = {}) {
+    this.isPrivate = !!isPrivate;
     this.window = new BrowserWindow({
       width: 1280,
       height: 820,
@@ -50,18 +53,20 @@ class WindowManager {
         nodeIntegration: false,
         sandbox: false, // preload must require('electron') but exposes a strict allow-list
         webSecurity: true,
-        partition: 'persist:piflex',
+        partition: this.isPrivate ? 'piflex-private' : 'persist:piflex',
       },
     });
 
-    this.window.once('ready-to-show', () => this.window.show());
-    this.window.on('resize', () => this._relayout());
+    this.window.once('ready-to-show', () => {
+      if (this.window && !this.window.isDestroyed()) this.window.show();
+    });
     this.window.on('maximize', () => this._sendMaximized(true));
     this.window.on('unmaximize', () => this._sendMaximized(false));
     this.window.on('closed', () => {
       this.window = null;
       this.attachedView = null;
       this.views.clear();
+      this.isPrivate = false;
     });
 
     this.window.webContents.setWindowOpenHandler(({ url }) => {
@@ -122,10 +127,18 @@ class WindowManager {
         // already detached
       }
     }
-    if (!this.views.has(view)) {
-      container.addChildView(view);
-      this.views.add(view);
+    // `views` tracks every view this window owns, not which one is currently a
+    // child of the content view. Always re-add when the view is not the one
+    // currently attached, otherwise switching A -> B -> A leaves the container
+    // empty because A is still in `views`.
+    if (this.attachedView !== view) {
+      try {
+        container.addChildView(view);
+      } catch {
+        // already attached (defensive)
+      }
     }
+    this.views.add(view);
     this.attachedView = view;
   }
 
@@ -171,12 +184,6 @@ class WindowManager {
       width: Math.max(0, Math.round(width)),
       height: Math.max(0, Math.round(height)),
     });
-  }
-
-  _relayout() {
-    // The renderer sends precise bounds after measuring its chrome; on bare
-    // window resize we simply nudge it to re-measure.
-    this.send('window:state', { resized: true });
   }
 
   setTheme(theme) {

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useBrowser } from '@/store/browser-store';
-import { piflex, win } from '@/lib/api';
+import { app as appApi, piflex, win } from '@/lib/api';
 
 /**
  * Global browser keyboard shortcuts. Registered on the shell renderer (not on
@@ -114,6 +114,18 @@ export function useShortcuts(enabled: boolean) {
         e.preventDefault();
         const visible = state.settingsData?.appearance.showBookmarksBar !== false;
         void state.updateSettings({ appearance: { showBookmarksBar: !visible } });
+        return;
+      }
+      // Ctrl+Q: exit app
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'q') {
+        e.preventDefault();
+        appApi.quit();
+        return;
+      }
+      // Ctrl+P: print
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        window.print();
         return;
       }
     };

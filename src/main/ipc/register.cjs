@@ -23,6 +23,30 @@ function registerIpc(services, { onTabActivate, onPermissionRespond, onAiCancel 
     });
   };
 
+  const getTabManager = (sender) => {
+    if (services.tabs && typeof services.tabs.forSender === 'function') {
+      const tm = services.tabs.forSender(sender);
+      if (tm) return tm;
+    }
+    if (services.tabs && typeof services.tabs.active === 'function') {
+      const tm = services.tabs.active();
+      if (tm) return tm;
+    }
+    return services.tabs;
+  };
+
+  const getWindowManager = (sender) => {
+    if (services.windows && typeof services.windows.forSender === 'function') {
+      const ctx = services.windows.forSender(sender);
+      if (ctx && ctx.windowManager) return ctx.windowManager;
+    }
+    if (services.windows && typeof services.windows.active === 'function') {
+      const ctx = services.windows.active();
+      if (ctx && ctx.windowManager) return ctx.windowManager;
+    }
+    return services.windows;
+  };
+
   // ---- app ----------------------------------------------------------------
   handle(IPC.appInfo, () => ({
     name: 'PiFlex',
@@ -35,46 +59,92 @@ function registerIpc(services, { onTabActivate, onPermissionRespond, onAiCancel 
   ipcMain.on(IPC.appQuit, () => app.quit());
 
   // ---- window -------------------------------------------------------------
-  ipcMain.on(IPC.windowMinimize, () => services.windows.minimize());
-  ipcMain.on(IPC.windowMaximize, () => services.windows.toggleMaximize());
-  ipcMain.on(IPC.windowClose, () => services.windows.close());
-  handle(IPC.windowIsMaximized, () => services.windows.isMaximized());
+  ipcMain.on(IPC.windowMinimize, (_e) => getWindowManager(_e && _e.sender)?.minimize());
+  ipcMain.on(IPC.windowMaximize, (_e) => getWindowManager(_e && _e.sender)?.toggleMaximize());
+  ipcMain.on(IPC.windowClose, (_e) => getWindowManager(_e && _e.sender)?.close());
+  handle(IPC.windowIsMaximized, (_p, _e) => getWindowManager(_e && _e.sender)?.isMaximized() ?? false);
   ipcMain.on(IPC.windowNew, () => services.onNewWindow && services.onNewWindow(false));
   ipcMain.on(IPC.windowNewPrivate, () => services.onNewWindow && services.onNewWindow(true));
   ipcMain.on(IPC.layoutSetToolbarHeight, (_e, payload = {}) => {
-    // The renderer measures its chrome and reports the content viewport rect.
-    if (payload.bounds) services.tabs.setBounds(payload.bounds);
-    else if (typeof payload.height === 'number') services.tabs.setBounds({ x: 0, y: payload.height, width: payload.width || 0, height: payload.viewportHeight || 0 });
+    const tm = getTabManager(_e && _e.sender);
+    if (!tm) return;
+    if (payload.bounds) tm.setBounds(payload.bounds);
+    else if (typeof payload.height === 'number') tm.setBounds({ x: 0, y: payload.height, width: payload.width || 0, height: payload.viewportHeight || 0 });
   });
   ipcMain.on(IPC.layoutSetViewVisible, (_e, payload = {}) => {
-    // Chrome popups (menus, dialogs, address suggestions) render in the shell,
-    // which sits *below* native web views. Temporarily hide the view so those
-    // popups are not occluded, then restore it when they close.
-    services.tabs.setViewVisible(payload.visible !== false);
+    const tm = getTabManager(_e && _e.sender);
+    if (tm) tm.setViewVisible(payload.visible !== false);
   });
 
   // ---- tabs ---------------------------------------------------------------
-  handle(IPC.tabList, () => services.tabs.listTabs());
-  handle(IPC.windowState, () => services.tabs.serializeAll());
-  handle(IPC.tabCreate, ({ url, private: isPrivate } = {}) => services.tabs.create({ url, private: isPrivate }));
-  handle(IPC.tabClose, ({ id }) => services.tabs.close(id));
-  ipcMain.on(IPC.tabActivate, (_e, { id } = {}) => onTabActivate(id));
-  handle(IPC.tabNavigate, ({ id, input }) => services.tabs.navigate(id, input));
-  handle(IPC.tabBack, ({ id }) => (services.tabs.navigateAction(id, 'back'), services.tabs.serialize(id)));
-  handle(IPC.tabForward, ({ id }) => (services.tabs.navigateAction(id, 'forward'), services.tabs.serialize(id)));
-  handle(IPC.tabReload, ({ id }) => (services.tabs.navigateAction(id, 'reload'), services.tabs.serialize(id)));
-  handle(IPC.tabStop, ({ id }) => (services.tabs.navigateAction(id, 'stop'), services.tabs.serialize(id)));
-  handle(IPC.tabHome, ({ id }) => services.tabs.navigate(id, 'piflex://newtab'));
-  handle(IPC.tabDuplicate, ({ id }) => services.tabs.duplicate(id));
-  handle(IPC.tabCloseOthers, ({ id }) => (services.tabs.closeOthers(id), true));
-  handle(IPC.tabMove, ({ id, toIndex }) => (services.tabs.move(id, toIndex), true));
-  handle(IPC.tabPin, ({ id, pinned }) => (services.tabs.setPinned(id, pinned), true));
-  handle(IPC.tabMute, ({ id, muted }) => (services.tabs.setMuted(id, muted), true));
-  handle(IPC.tabZoom, ({ id, factor }) => (services.tabs.setZoom(id, factor), true));
-  ipcMain.on(IPC.tabFind, (_e, { id, text } = {}) => services.tabs.find(id, text || ''));
-  ipcMain.on(IPC.tabFindStop, (_e, { id, action } = {}) => services.tabs.stopFind(id, action || 'clearSelection'));
-  handle(IPC.tabReorder, ({ order }) => (services.tabs.reorder(order), true));
-  handle(IPC.tabSetGroup, ({ id, groupId }) => (services.tabs.setGroup(id, groupId), true));
+  handle(IPC.tabList, (_p, _e) => getTabManager(_e && _e.sender).listTabs());
+  handle(IPC.windowState, (_p, _e) => getTabManager(_e && _e.sender).serializeAll());
+  handle(IPC.tabCreate, ({ url, private: isPrivate } = {}, _e) => getTabManager(_e && _e.sender).create({ url, private: isPrivate }));
+  handle(IPC.tabClose, ({ id }, _e) => getTabManager(_e && _e.sender).close(id));
+  ipcMain.on(IPC.tabActivate, (_e, { id } = {}) => onTabActivate(_e, id));
+  handle(IPC.tabNavigate, ({ id, input }, _e) => getTabManager(_e && _e.sender).navigate(id, input));
+  handle(IPC.tabBack, ({ id }, _e) => {
+    const tm = getTabManager(_e && _e.sender);
+    tm.navigateAction(id, 'back');
+    return tm.serialize(id);
+  });
+  handle(IPC.tabForward, ({ id }, _e) => {
+    const tm = getTabManager(_e && _e.sender);
+    tm.navigateAction(id, 'forward');
+    return tm.serialize(id);
+  });
+  handle(IPC.tabReload, ({ id }, _e) => {
+    const tm = getTabManager(_e && _e.sender);
+    tm.navigateAction(id, 'reload');
+    return tm.serialize(id);
+  });
+  handle(IPC.tabStop, ({ id }, _e) => {
+    const tm = getTabManager(_e && _e.sender);
+    tm.navigateAction(id, 'stop');
+    return tm.serialize(id);
+  });
+  handle(IPC.tabHome, ({ id }, _e) => getTabManager(_e && _e.sender).navigate(id, 'piflex://newtab'));
+  handle(IPC.tabDuplicate, ({ id }, _e) => getTabManager(_e && _e.sender).duplicate(id));
+  handle(IPC.tabCloseOthers, ({ id }, _e) => {
+    getTabManager(_e && _e.sender).closeOthers(id);
+    return true;
+  });
+  handle(IPC.tabMove, ({ id, toIndex }, _e) => {
+    getTabManager(_e && _e.sender).move(id, toIndex);
+    return true;
+  });
+  handle(IPC.tabPin, ({ id, pinned }, _e) => {
+    getTabManager(_e && _e.sender).setPinned(id, pinned);
+    return true;
+  });
+  handle(IPC.tabMute, ({ id, muted }, _e) => {
+    getTabManager(_e && _e.sender).setMuted(id, muted);
+    return true;
+  });
+  handle(IPC.tabZoom, ({ id, factor }, _e) => {
+    getTabManager(_e && _e.sender).setZoom(id, factor);
+    return true;
+  });
+  ipcMain.on(IPC.tabFind, (_e, { id, text } = {}) => {
+    const tm = getTabManager(_e && _e.sender);
+    if (tm) tm.find(id, text || '');
+  });
+  ipcMain.on(IPC.tabFindNext, (_e, { id, text, forward } = {}) => {
+    const tm = getTabManager(_e && _e.sender);
+    if (tm) tm.findNext(id, text, forward !== false);
+  });
+  ipcMain.on(IPC.tabFindStop, (_e, { id, action } = {}) => {
+    const tm = getTabManager(_e && _e.sender);
+    if (tm) tm.stopFind(id, action || 'clearSelection');
+  });
+  handle(IPC.tabReorder, ({ order }, _e) => {
+    getTabManager(_e && _e.sender).reorder(order);
+    return true;
+  });
+  handle(IPC.tabSetGroup, ({ id, groupId }, _e) => {
+    getTabManager(_e && _e.sender).setGroup(id, groupId);
+    return true;
+  });
 
   // ---- search -------------------------------------------------------------
   handle(IPC.searchSuggest, ({ query }) => services.search.suggest(query));
@@ -188,7 +258,17 @@ function registerIpc(services, { onTabActivate, onPermissionRespond, onAiCancel 
     return services.ai.chat(requestId, { history, userText, pageText, pageTitle, selectionText: selection });
   });
   ipcMain.on(IPC.aiChatCancel, () => onAiCancel());
-  handle(IPC.aiModels, () => ({ catalog: services.models.catalog(), installed: services.models.installed() }));
+  handle(IPC.aiModels, async () => {
+    let ollamaModels = [];
+    if (services.ai && typeof services.ai.fetchOllamaInstalledModels === 'function') {
+      ollamaModels = await services.ai.fetchOllamaInstalledModels().catch(() => []);
+    }
+    return {
+      catalog: services.models.catalog(),
+      installed: services.models.installed(),
+      ollamaModels,
+    };
+  });
   handle(IPC.aiDownloadModel, ({ modelId }) => services.models.download(modelId, 'model-download'));
   handle(IPC.aiEnsureRuntime, async () => {
     const executable = await services.runtime.ensure();

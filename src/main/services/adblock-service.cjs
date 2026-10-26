@@ -23,8 +23,12 @@ const UPDATE_INTERVAL_MS = 4 * 24 * 60 * 60 * 1000;
  * engine performs natively.
  */
 class AdblockService {
-  constructor({ session, settingsService, filtersDir, cacheDir, logger, net, onStats }) {
-    this.session = session;
+  constructor({ session, sessions, settingsService, filtersDir, cacheDir, logger, net, onStats }) {
+    // A single service can guard several Electron sessions (the persistent
+    // profile and the private one) so private tabs get the same blocking as
+    // normal tabs.
+    this.sessions = Array.isArray(sessions) && sessions.length ? sessions : session ? [session] : [];
+    this.session = this.sessions[0] || session;
     this.settings = settingsService;
     this.filtersDir = filtersDir;
     this.cacheDir = cacheDir;
@@ -172,18 +176,20 @@ class AdblockService {
     if (this.installed) return;
     this.installed = true;
     const filter = { urls: ['http://*/*', 'https://*/*'] };
-    this.session.webRequest.onBeforeRequest(filter, (details, callback) => {
-      try {
-        callback({ cancel: this._shouldBlock(details) });
-      } catch (error) {
-        this.logger.warn('Adblock onBeforeRequest crashed', error.message);
+    for (const ses of this.sessions) {
+      ses.webRequest.onBeforeRequest(filter, (details, callback) => {
         try {
-          callback({ cancel: false });
-        } catch {
-          // ignore
+          callback({ cancel: this._shouldBlock(details) });
+        } catch (error) {
+          this.logger.warn('Adblock onBeforeRequest crashed', error.message);
+          try {
+            callback({ cancel: false });
+          } catch {
+            // ignore
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   _shouldBlock(details) {
@@ -271,10 +277,12 @@ class AdblockService {
 
   destroy() {
     if (this.updateTimer) clearInterval(this.updateTimer);
-    try {
-      this.session.webRequest.onBeforeRequest(null);
-    } catch {
-      // ignore
+    for (const ses of this.sessions) {
+      try {
+        ses.webRequest.onBeforeRequest(null);
+      } catch {
+        // ignore
+      }
     }
   }
 }

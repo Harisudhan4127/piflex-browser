@@ -129,15 +129,36 @@ class HistoryService {
     if (!list.length) return 0;
     const placeholders = list.map(() => '?').join(',');
     const info = this.db.prepare(`DELETE FROM history WHERE id IN (${placeholders})`).run(...list);
+    this._pruneTopSites();
     return info.changes;
+  }
+
+  /** Drop derived top sites whose host no longer has any history; keep pinned entries. */
+  _pruneTopSites() {
+    if (!this.db.available) return;
+    this.db
+      .prepare(
+        `DELETE FROM top_sites
+         WHERE pinned = 0 AND host NOT IN (SELECT DISTINCT host FROM history)`,
+      )
+      .run();
   }
 
   clear({ since = 0 } = {}) {
     if (!this.db.available) return 0;
     if (since > 0) {
-      return this.db.prepare('DELETE FROM history WHERE last_visit >= ?').run(since).changes;
+      const changes = this.db.prepare('DELETE FROM history WHERE last_visit >= ?').run(since).changes;
+      this.db.prepare('DELETE FROM sessions_closed WHERE closed_at >= ?').run(since);
+      this._pruneTopSites();
+      return changes;
     }
-    return this.db.prepare('DELETE FROM history').run().changes;
+    // "Clear all history" must also remove the derived top sites and the
+    // recently-closed list; otherwise sensitive hosts remain visible on the
+    // new-tab page after the user believes everything was deleted.
+    const changes = this.db.prepare('DELETE FROM history').run().changes;
+    this.db.prepare('DELETE FROM top_sites').run();
+    this.db.prepare('DELETE FROM sessions_closed').run();
+    return changes;
   }
 
   topSites({ limit = 8 } = {}) {
@@ -173,7 +194,7 @@ class HistoryService {
   }
 
   recordClosed(url, title) {
-    if (!this.db.available) return;
+    if (!this.enabled || !this.db.available) return;
     const clean = String(url || '').trim();
     if (!/^https?:\/\//i.test(clean)) return;
     this.db

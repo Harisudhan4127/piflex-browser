@@ -39,9 +39,9 @@ export function NewTabPage() {
         </div>
       ) : null,
     search: config?.showSearch !== false ? <SearchWidget key="search" /> : null,
-    topSites: config?.showTopSites !== false ? <TopSitesGrid key="topSites" /> : null,
+    topSites: !isPrivate && config?.showTopSites !== false ? <TopSitesGrid key="topSites" /> : null,
     privacyStats: config?.showPrivacyStats !== false ? <PrivacyStatsWidget key="privacyStats" /> : null,
-    recent: config?.showRecent !== false ? <RecentWidget key="recent" /> : null,
+    recent: !isPrivate && config?.showRecent !== false ? <RecentWidget key="recent" /> : null,
     news: config?.showNews ? <NewsFeed key="news" /> : null,
   };
 

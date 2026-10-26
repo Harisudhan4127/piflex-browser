@@ -40,15 +40,18 @@ class AiService {
   }
 
   get status() {
+    const config = this.getConfig();
+    const provider = config.provider || 'ollama';
+    const isLocal = provider === 'llamacpp';
     return {
-      enabled: !!this.getConfig().enabled,
-      provider: this.getConfig().provider || 'llamacpp',
-      ready: this.state === 'ready',
-      modelId: this.getConfig().modelId || null,
+      enabled: !!config.enabled,
+      provider,
+      ready: isLocal ? this.state === 'ready' : (config.enabled !== false),
+      modelId: config.modelId || (provider === 'ollama' ? 'llama3.2' : null),
       installedModels: this.installedModels(),
       runtimeReady: !!this._findRuntime(),
       provisioning: this.provisioning,
-      message: this.lastError || (this.state === 'ready' ? 'Ready' : this.state),
+      message: this.lastError || (isLocal ? (this.state === 'ready' ? 'Ready' : this.state) : (config.enabled ? 'Ready' : 'Disabled')),
     };
   }
 
@@ -87,6 +90,86 @@ class AiService {
     if (config.provider === 'ollama') return (config.endpoint || 'http://127.0.0.1:11434').replace(/\/+$/, '');
     if (config.provider === 'openai-compatible') return (config.endpoint || '').replace(/\/+$/, '');
     return `http://127.0.0.1:${config.port || 18080}`;
+  }
+
+  fetchOllamaInstalledModels() {
+    return new Promise((resolve) => {
+      try {
+        const url = this.baseUrl() + '/api/tags';
+        const request = this.net.request({ method: 'GET', url });
+        let buffer = '';
+        request.on('response', (response) => {
+          if (response.statusCode >= 400) {
+            resolve([]);
+            return;
+          }
+          response.on('data', (chunk) => {
+            buffer += chunk.toString('utf8');
+          });
+          response.on('end', () => {
+            try {
+              const data = JSON.parse(buffer);
+              if (Array.isArray(data.models)) {
+                const names = data.models.map((m) => m.name || m.model).filter(Boolean);
+                resolve(names);
+                return;
+              }
+            } catch {
+              // ignore
+            }
+            resolve([]);
+          });
+          response.on('error', () => resolve([]));
+        });
+        request.on('error', () => resolve([]));
+        request.end();
+      } catch {
+        resolve([]);
+      }
+    });
+  }
+
+  async _resolveOllamaModel(config) {
+    const installed = await this.fetchOllamaInstalledModels().catch(() => []);
+    const rawId = String(config.modelId || '').trim();
+    const catalog = getCatalog();
+    const isCatalog = catalog.some((m) => m.id === rawId);
+    const isGguf = rawId.toLowerCase().endsWith('.gguf');
+
+    // If user specified an explicit non-catalog tag:
+    if (rawId && !isCatalog && !isGguf) {
+      if (installed.length > 0) {
+        const exact = installed.find((m) => m === rawId || m === `${rawId}:latest`);
+        if (exact) return exact;
+        const prefix = installed.find((m) => m.startsWith(rawId) || rawId.startsWith(m.split(':')[0]));
+        if (prefix) return prefix;
+      }
+      return rawId;
+    }
+
+    // If config.modelId was a GGUF catalog ID (e.g. 'qwen2.5-0.5b-instruct-q4km'):
+    if (rawId) {
+      const clean = rawId
+        .replace(/-instruct-q4_?k_?m/gi, '')
+        .replace(/-q4_?k_?m/gi, '')
+        .replace(/-instruct/gi, '');
+      const parts = clean.split('-');
+      const candidateTag = parts.length > 1 ? `${parts[0]}:${parts.slice(1).join('-')}` : clean;
+      if (installed.length > 0) {
+        const match = installed.find(
+          (m) => m === candidateTag || m.startsWith(candidateTag) || m.startsWith(parts[0] + ':') || m.startsWith(clean),
+        );
+        if (match) return match;
+      }
+    }
+
+    // If any models are already installed in Ollama, automatically pick the first one
+    if (installed.length > 0) {
+      return installed[0];
+    }
+
+    // Default fallback
+    return 'llama3.2';
   }
 
   _findRuntime() {
@@ -137,11 +220,14 @@ class AiService {
   async ensureServer() {
     const config = this.getConfig();
     if (!config.enabled) throw new Error('AI features are disabled in Settings');
-    if (config.provider !== 'llamacpp') return;
+    if (config.provider !== 'llamacpp') {
+      if (this.server) this.stopServer();
+      return;
+    }
     if (this.server && this.state === 'ready') return;
 
     const modelPath = this.resolvedModelPath();
-    if (!modelPath) throw new Error('No GGUF model is installed');
+    if (!modelPath) throw new Error('No GGUF model is installed. In Settings > AI, select llama.cpp and download a model.');
     let runtime = this._findRuntime();
     if (!runtime && this.runtimeService) {
       // Zero-config path: fetch the official llama.cpp server build on first use.
@@ -155,7 +241,7 @@ class AiService {
       }
     }
     if (!runtime) {
-      throw new Error('llama-server runtime was not found. Install llama.cpp and add llama-server to PATH.');
+      throw new Error('llama-server runtime was not found. Install llama.cpp or set up runtime in Settings.');
     }
 
     if (this.server && this.serverModelPath !== modelPath) this.stopServer();
@@ -245,6 +331,7 @@ class AiService {
   async autoProvision() {
     const config = this.getConfig();
     if (!config.enabled || config.autoSetup === false) return;
+    if (config.provider !== 'llamacpp') return;
     if (this.provisioning) return;
     if (!this.runtimeService || !this.modelService) return;
     if (this._findRuntime() && this.resolvedModelPath()) return;
@@ -321,10 +408,11 @@ class AiService {
       return this._streamOpenAi(requestId, this.baseUrl() + '/v1/chat/completions', payload, config, false);
     }
     if (config.provider === 'ollama') {
-      return this._streamOllama(requestId, base + '/api/chat', payload, config);
+      const ollamaModel = await this._resolveOllamaModel(config);
+      return this._streamOllama(requestId, this.baseUrl() + '/api/chat', payload, { ...config, modelId: ollamaModel });
     }
     if (config.provider === 'openai-compatible') {
-      return this._streamOpenAi(requestId, base + '/v1/chat/completions', payload, config, true);
+      return this._streamOpenAi(requestId, this.baseUrl() + '/v1/chat/completions', payload, config, true);
     }
     await this.ensureServer();
     if (!this.server) throw new Error(this.lastError || 'The local model is not ready');
@@ -351,18 +439,32 @@ class AiService {
         temperature: config.temperature,
         max_tokens: config.maxTokens,
       });
+      const headers = { 'Content-Type': 'application/json' };
+      if (needsKey && config.apiKey) {
+        headers['Authorization'] = `Bearer ${config.apiKey}`;
+      }
       const request = this.net.request({
         method: 'POST',
         url,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
       });
       this.activeRequest = request;
       let buffer = '';
       let full = '';
       request.on('response', (response) => {
         if (response.statusCode >= 400) {
-          reject(new Error(`AI endpoint returned HTTP ${response.statusCode}`));
-          request.abort();
+          let errBody = '';
+          response.on('data', (c) => { errBody += c.toString('utf8'); });
+          response.on('end', () => {
+            this.activeRequest = null;
+            let errMsg = `AI endpoint returned HTTP ${response.statusCode}`;
+            try {
+              const parsed = JSON.parse(errBody);
+              if (parsed.error && parsed.error.message) errMsg += `: ${parsed.error.message}`;
+              else if (parsed.error) errMsg += `: ${parsed.error}`;
+            } catch {}
+            reject(new Error(errMsg));
+          });
           return;
         }
         response.on('data', (chunk) => {
@@ -395,7 +497,12 @@ class AiService {
       });
       request.on('error', (error) => {
         this.activeRequest = null;
-        reject(error);
+        const msg = error && error.message ? error.message : String(error);
+        if (msg.includes('CONNECTION_REFUSED') || msg.includes('ECONNREFUSED')) {
+          reject(new Error(`Could not connect to AI endpoint at ${url}. Make sure the server is running.`));
+        } else {
+          reject(error);
+        }
       });
       request.write(body);
       request.end();
@@ -416,10 +523,27 @@ class AiService {
       let full = '';
       request.on('response', (response) => {
         if (response.statusCode >= 400) {
-          const err = new Error(`Ollama returned HTTP ${response.statusCode}`);
-          err.statusCode = response.statusCode;
-          reject(err);
-          request.abort();
+          let errBody = '';
+          response.on('data', (c) => { errBody += c.toString('utf8'); });
+          response.on('end', async () => {
+            this.activeRequest = null;
+            let errMsg = `Ollama returned HTTP ${response.statusCode}`;
+            try {
+              const parsed = JSON.parse(errBody);
+              if (parsed.error) errMsg += `: ${parsed.error}`;
+            } catch {}
+            if (response.statusCode === 404) {
+              const installed = await this.fetchOllamaInstalledModels().catch(() => []);
+              if (installed.length > 0) {
+                errMsg = `Ollama model '${config.modelId}' is not found. Models installed in your Ollama: [${installed.join(', ')}]. Run 'ollama pull ${config.modelId}' in your terminal or select an installed model in Settings > AI.`;
+              } else {
+                errMsg = `Ollama model '${config.modelId}' is not found. Run 'ollama pull ${config.modelId}' (or 'ollama pull llama3.2') in your terminal to install it.`;
+              }
+            }
+            const err = new Error(errMsg);
+            err.statusCode = response.statusCode;
+            reject(err);
+          });
           return;
         }
         response.on('data', (chunk) => {
@@ -450,7 +574,12 @@ class AiService {
       });
       request.on('error', (error) => {
         this.activeRequest = null;
-        reject(error);
+        const msg = error && error.message ? error.message : String(error);
+        if (msg.includes('CONNECTION_REFUSED') || msg.includes('ECONNREFUSED')) {
+          reject(new Error(`Could not connect to Ollama at ${url}. Make sure Ollama is installed and running ('ollama serve').`));
+        } else {
+          reject(error);
+        }
       });
       request.write(body);
       request.end();
