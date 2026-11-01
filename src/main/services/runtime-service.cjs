@@ -7,13 +7,24 @@ const { spawn } = require('child_process');
 // Official llama.cpp release channel. Runtime binaries are only downloaded on
 // explicit user action (or the first AI request), over HTTPS, from the
 // canonical repository. No third-party mirrors are used.
-const RELEASES_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases/latest';
+//
+// Note: llama.cpp publishes its binary builds as GitHub *pre-releases*, and the
+// `/releases/latest` endpoint excludes pre-releases. It currently resolves to a
+// version tag (v0.8.0) that only carries `nightly-tag.txt`, so using it makes
+// every platform look unsupported. List recent releases newest-first instead and
+// pick the first release that actually ships a matching binary.
+const RELEASES_API = 'https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=20';
 const MAX_ARCHIVE_BYTES = 500 * 1024 * 1024;
 const SERVER_NAMES = process.platform === 'win32'
   ? ['llama-server.exe', 'server.exe']
   : ['llama-server', 'llama-server-bin', 'server'];
 
-const GPU_KEYWORDS = ['cuda', 'cublas', 'vulkan', 'sycl', 'hip', 'kompute', 'metal', 'opencl'];
+// Accelerator- and vendor-specific builds. They need extra runtimes/drivers and
+// are often broken on machines without them, so plain CPU builds are preferred.
+const VARIANT_KEYWORDS = [
+  'cuda', 'cublas', 'cudart', 'vulkan', 'sycl', 'hip', 'kompute', 'metal',
+  'opencl', 'openvino', 'rocm', 'zdnn', 'snapdragon', 'musa', 'cann', 'rpc',
+];
 
 function isExecutableName(name) {
   return SERVER_NAMES.includes(name.toLowerCase());
@@ -51,24 +62,43 @@ function assetScore(asset, platform, arch) {
   if (!/\.(zip|tar\.gz|tgz)$/.test(name)) return -1;
   let score = 0;
 
-    if (platform === 'win32') {
-      if (!name.includes('win')) return -1;
-      // Prefer official binaries and common naming (cpu/avx2)
-    } else if (platform === 'darwin') {
+  if (platform === 'win32') {
+    if (!name.includes('win')) return -1;
+  } else if (platform === 'darwin') {
     if (!name.includes('macos') && !name.includes('osx')) return -1;
   } else {
     if (!name.includes('linux') && !name.includes('ubuntu')) return -1;
   }
 
-    const targetArch = arch === 'arm64' ? 'arm64' : arch === 'ia32' ? 'x86' : 'x64';
-    if (name.includes(targetArch)) score += 8;
-    else if (targetArch === 'x64' && (name.includes('x86_64') || name.includes('amd64') || name.includes('win-x64'))) score += 8;
-    else return -1;
+  const archTokens = {
+    x64: ['x64', 'x86_64', 'amd64'],
+    arm64: ['arm64', 'aarch64'],
+    ia32: ['win-x86', 'i386', 'i686', 'x86-32'],
+  }[arch];
+  if (!archTokens) return -1;
+  if (!archTokens.some((token) => name.includes(token))) return -1;
+  score += 8;
 
-  if (GPU_KEYWORDS.some((keyword) => name.includes(keyword))) score -= 20;
+  if (VARIANT_KEYWORDS.some((keyword) => name.includes(keyword))) score -= 20;
   if (name.includes('cpu') || name.includes('avx2') || name.includes('noavx')) score += 4;
   if (name.endsWith('.zip')) score += 2;
   return score;
+}
+
+/**
+ * Picks the best matching asset from the newest release that has one.
+ * Accepts a single release object or an array ordered newest-first.
+ */
+function pickRuntimeAsset(releases, platform, arch) {
+  const list = Array.isArray(releases) ? releases : releases ? [releases] : [];
+  for (const release of list) {
+    const ranked = (release.assets || [])
+      .map((asset) => ({ asset, score: assetScore(asset, platform, arch) }))
+      .filter((entry) => entry.score >= 0)
+      .sort((a, b) => b.score - a.score);
+    if (ranked.length > 0) return { release, asset: ranked[0].asset };
+  }
+  return null;
 }
 
 class RuntimeService {
@@ -109,28 +139,25 @@ class RuntimeService {
   async _install() {
     fs.mkdirSync(this.runtimeDir, { recursive: true });
     this._emit({ phase: 'resolving', received: 0, total: 0, done: false });
-    const release = await this._getJson(RELEASES_API);
-    const candidates = (release.assets || [])
-      .map((asset) => ({ asset, score: assetScore(asset, process.platform, process.arch) }))
-      .filter((entry) => entry.score >= 0)
-      .sort((a, b) => b.score - a.score);
-    const choice = candidates[0];
-    if (!choice) {
+    const releases = await this._getJson(RELEASES_API);
+    const selected = pickRuntimeAsset(releases, process.platform, process.arch);
+    if (!selected) {
       throw new Error(
         `No llama.cpp build is available for ${process.platform}/${process.arch}. ` +
           'Install llama.cpp and add llama-server to PATH instead.',
       );
     }
+    const { release, asset } = selected;
 
     const tag = String(release.tag_name || 'latest').replace(/[^a-z0-9._-]/gi, '');
     const targetDir = path.join(this.runtimeDir, `llama-${tag}`);
-    const assetName = path.basename(String(choice.asset.name)).replace(/[^a-z0-9._-]/gi, '');
+    const assetName = path.basename(String(asset.name)).replace(/[^a-z0-9._-]/gi, '');
     const archive = path.join(this.runtimeDir, assetName || `llama-${tag}.zip`);
 
-    this.logger.info('Downloading llama-server runtime', choice.asset.name);
-    await this._download(choice.asset.browser_download_url, archive);
+    this.logger.info('Downloading llama-server runtime', asset.name);
+    await this._download(asset.browser_download_url, archive);
 
-    this._emit({ phase: 'extracting', received: 0, total: 0, done: false, asset: choice.asset.name });
+    this._emit({ phase: 'extracting', received: 0, total: 0, done: false, asset: asset.name });
     fs.mkdirSync(targetDir, { recursive: true });
     await this._extract(archive, targetDir);
     try {
@@ -149,7 +176,7 @@ class RuntimeService {
       // ignore permission errors
     }
     this.lastError = null;
-    this._emit({ phase: 'ready', received: 0, total: 0, done: true, path: found, asset: choice.asset.name });
+    this._emit({ phase: 'ready', received: 0, total: 0, done: true, path: found, asset: asset.name });
     this.logger.info('llama-server runtime ready', found);
     return found;
   }
@@ -287,4 +314,4 @@ class RuntimeService {
   }
 }
 
-module.exports = { RuntimeService, assetScore, findServerBinary };
+module.exports = { RuntimeService, assetScore, pickRuntimeAsset, findServerBinary };

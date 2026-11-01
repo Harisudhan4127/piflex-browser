@@ -24,7 +24,7 @@ const memory = require('../core/ai/memory');
 const prompt = require('../core/ai/prompt');
 const runtime = require('../core/ai/runtime');
 const catalog = require('../core/ai/catalog');
-const { assetScore, findServerBinary } = require('../src/main/services/runtime-service.cjs');
+const { assetScore, pickRuntimeAsset, findServerBinary } = require('../src/main/services/runtime-service.cjs');
 
 let passed = 0;
 let failed = 0;
@@ -672,6 +672,39 @@ test('runtime asset selection prefers matching CPU builds', () => {
   assert(assetScore({ name: 'llama-b5000-bin-macos-arm64.zip' }, 'darwin', 'arm64') > 0);
   assert.strictEqual(assetScore({ name: 'llama-b5000-bin-macos-x64.zip' }, 'darwin', 'arm64'), -1);
   assert.strictEqual(assetScore({ name: 'llama-b5000-bin-win-cpu-x64.7z' }, 'win32', 'x64'), -1);
+  // Vendor/accelerator variants must rank below the plain CPU build.
+  const plainLinux = assetScore({ name: 'llama-b5000-bin-ubuntu-x64.tar.gz' }, 'linux', 'x64');
+  const openvino = assetScore({ name: 'llama-b5000-bin-ubuntu-openvino-x64.tar.gz' }, 'linux', 'x64');
+  const sycl = assetScore({ name: 'llama-b5000-bin-ubuntu-sycl-x64.tar.gz' }, 'linux', 'x64');
+  assert(plainLinux > 0);
+  assert(plainLinux > openvino);
+  assert(plainLinux > sycl);
+  // Unknown architectures must not silently fall back to x64 builds.
+  assert.strictEqual(assetScore({ name: 'llama-b5000-bin-ubuntu-x64.tar.gz' }, 'linux', 's390x'), -1);
+});
+
+test('runtime selection skips releases without matching binaries (pre-release builds)', () => {
+  // Regression: llama.cpp binaries ship as pre-releases, while /releases/latest
+  // resolves to an asset-less version tag. Selection must walk the list.
+  const releases = [
+    { tag_name: 'v0.8.0', prerelease: false, assets: [{ name: 'nightly-tag.txt' }] },
+    { tag_name: 'b12025', prerelease: true, assets: [] },
+    {
+      tag_name: 'b12024',
+      prerelease: true,
+      assets: [
+        { name: 'llama-b12024-bin-ubuntu-x64.tar.gz' },
+        { name: 'llama-b12024-bin-macos-arm64.tar.gz' },
+        { name: 'llama-b12024-bin-win-cuda-13.4-x64.zip' },
+        { name: 'llama-b12024-bin-win-cpu-x64.zip' },
+      ],
+    },
+  ];
+  const selected = pickRuntimeAsset(releases, 'win32', 'x64');
+  assert(selected, 'expected a runtime asset to be selected');
+  assert.strictEqual(selected.release.tag_name, 'b12024');
+  assert.strictEqual(selected.asset.name, 'llama-b12024-bin-win-cpu-x64.zip');
+  assert.strictEqual(pickRuntimeAsset(releases, 'linux', 's390x'), null);
 });
 
 test('finds a llama-server binary in nested runtime folders', () => {
